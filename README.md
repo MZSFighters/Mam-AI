@@ -31,18 +31,26 @@ runai submit \
   -- sleep infinity
 ```
 
-  runai describe job meditron-basic
 
-  runai delete job meditron-basic
+To access your workspace and run the files:
+
+`runai exec mam-rag -it bash`
+
+`cd /mloscratch/users/moonsamy`
+
+`python train.py`
+
+To check status of the job:
+
+`runai describe job meditron-basic`
+
+To end the job: 
+
+`runai delete job meditron-basic`
 
 
-runai exec mam-rag -it bash
 
-
-cd /mloscratch/users/moonsamy
-
-
-python train.py
 
 ### To create an environment: 
-python -m venv env_name
+
+`python -m venv env_name`
