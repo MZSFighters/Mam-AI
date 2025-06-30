@@ -3,16 +3,17 @@
 <!-- Once the necessary software is installed on your computer: To use the RCP Cluster: runai config cluster rcp-caas-->
 
 Log in to runai:
+
 `runai login`
 
 <!--To list the different projects you might have: runai list project-->
 
+<!--To configure a project to work on right now: runai config project light-$GASPAR-->
 
-To configure a project to work on right now
-runai config project light-$GASPAR
+Then submit the job:
 
-
-To submit a job: runai submit \
+```
+runai submit \
   --name meditron-basic \
   --image registry.rcp.epfl.ch/multimeditron/basic:latest-$GASPAR\
   --pvc light-scratch:/mloscratch \
@@ -28,7 +29,7 @@ To submit a job: runai submit \
   --node-pool h100 \
   --gpu 1 \
   -- sleep infinity
-
+```
 
   runai describe job meditron-basic
 
