@@ -14,7 +14,7 @@ Then submit the job:
 
 ```
 runai submit \
-  --name meditron-basic \
+  --name job_name \
   --image registry.rcp.epfl.ch/multimeditron/basic:latest-$GASPAR\
   --pvc light-scratch:/mloscratch \
   --large-shm \
@@ -34,19 +34,28 @@ runai submit \
 
 To access your workspace and run the files:
 
-`runai exec mam-rag -it bash`
+`runai exec job_name -it bash`
 
-`cd /mloscratch/users/moonsamy`
+OR
+
+`runai bash job_name`
+
+
+Then cd into the right folder:
+
+`cd /mloscratch/users/$GASPAR`
+
+Run the file:
 
 `python train.py`
 
 To check status of the job:
 
-`runai describe job meditron-basic`
+`runai describe job job_name`
 
 To end the job: 
 
-`runai delete job meditron-basic`
+`runai delete job job_name`
 
 
 
