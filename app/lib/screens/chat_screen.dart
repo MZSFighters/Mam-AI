@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -8,8 +10,53 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
+  String? _latestMessage;
+  static const platform = MethodChannel("io.github.mzsfighters.mam_ai/test");
+  static const latestMessageStream = EventChannel("io.github.mzsfighters.mam_ai/latest_message");
+  StreamSubscription? _latestMessageSubscription;
+
+  final TextEditingController _textController = TextEditingController();
+
+  Future<void> _generateResponse(String prompt) async {
+    try {
+      await platform.invokeMethod<int>("generateResponse", prompt);
+    } on PlatformException catch (e) {
+      print("Error: $e");
+    }
+  }
+
+  void _startListeningForLatestMessage() {
+    _latestMessageSubscription = latestMessageStream.receiveBroadcastStream().listen(_onLatestMessageUpdate);
+  }
+
+  void _stopListeningForLatestMessage() {
+    _latestMessageSubscription?.cancel();
+    setState(() {
+      _latestMessage = '<channel broken>';
+    });
+  }
+
+  void _onLatestMessageUpdate(value) {
+    setState(() {
+      _latestMessage = value;
+    });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _stopListeningForLatestMessage();
+  }
+
+
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_latestMessageSubscription == null) {
+        _startListeningForLatestMessage();
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -58,7 +105,7 @@ class _ChatPageState extends State<ChatPage> {
                   border: Border.all(color: Colors.blueAccent, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.blueAccent.withOpacity(0.1),
+                      color: Colors.blueAccent.withValues(alpha: 0.1),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -77,6 +124,7 @@ class _ChatPageState extends State<ChatPage> {
                     Expanded(
                       child: Center(
                         child: TextField(
+                          controller: _textController,
                           textAlign: TextAlign.center,
                           decoration: const InputDecoration(
                             hintText: 'Ask your medical question...',
@@ -95,7 +143,7 @@ class _ChatPageState extends State<ChatPage> {
                         color: Colors.blueAccent,
                       ),
                       onPressed: () {
-                        // Handle send action
+                        _generateResponse(_textController.text);
                       },
                     ),
                   ],
@@ -130,6 +178,7 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
               const SizedBox(height: 20),
+              Text(_latestMessage ?? "<Not yet initialized>"),
             ],
           ),
         ),
