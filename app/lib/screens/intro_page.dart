@@ -64,7 +64,7 @@ class IntroPage extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Partner logos
-                      Image.asset('images/partners.png', height: 60),
+                      Image.asset('images/partners.png', height: 40),
                       // Add more partners as needed
                     ],
                   ),
