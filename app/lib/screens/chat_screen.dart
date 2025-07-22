@@ -12,80 +12,126 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mam AI Medical Chat'),
+        title: const Text(
+          'Medical Chat',
+          style: TextStyle(color: Colors.white),
+        ),
+        centerTitle: true,
+
         backgroundColor: Colors.blueAccent,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-        // Search-like input field
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.grey[200],
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12.0),
-            child: Icon(Icons.search, color: Colors.blueAccent),
-          ),
-          Expanded(
-            child: TextField(
-              decoration: const InputDecoration(
-            hintText: 'Ask a medical question...',
-            border: InputBorder.none,
+              // Chatbot welcome message
+              Column(
+                children: const [
+                  Icon(
+                    Icons.account_circle,
+                    size: 60,
+                    color: Colors.blueAccent,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Welcome to Mam AI!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Colors.blueAccent,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.send, color: Colors.blueAccent),
-            onPressed: () {
-              // Handle send action
-            },
-          ),
+              // Medical chatbot themed input field, centered
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.lightBlue[50],
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: Colors.blueAccent, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blueAccent.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                width: 400, // Fixed width for centering
+                child: Row(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Icon(
+                        Icons.medical_services,
+                        color: Colors.blueAccent,
+                      ),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: TextField(
+                          textAlign: TextAlign.center,
+                          decoration: const InputDecoration(
+                            hintText: 'Ask your medical question...',
+                            hintStyle: TextStyle(
+                              color: Colors.blueGrey,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.send_rounded,
+                        color: Colors.blueAccent,
+                      ),
+                      onPressed: () {
+                        // Handle send action
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              // Suggested prompts
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 16),
+
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 6,
+                      ),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[100],
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'What should I do when the baby is crying?',
+                        style: TextStyle(
+                          color: Colors.blueAccent,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
-        ),
-        const SizedBox(height: 20),
-        // Chat messages area
-        Expanded(
-          child: ListView(
-            children: [
-          // Example user message
-          Align(
-            alignment: Alignment.centerRight,
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 4),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-            color: Colors.teal[100],
-            borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Text('What are the symptoms of flu?'),
-            ),
-          ),
-          // Example bot response
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 4),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Text(
-            'Common symptoms of flu include fever, cough, sore throat, muscle aches, and fatigue.',
-              ),
-            ),
-          ),
-          // Add more messages here
-            ],
-          ),
-        ),
-          ],
         ),
       ),
     );
