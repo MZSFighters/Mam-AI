@@ -1,4 +1,10 @@
 #include "flutter_window.h"
+#include <flutter/event_channel.h>
+#include <flutter/event_stream_handler_functions.h>
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
+#include <windows.h>
+#include <memory>
 
 #include <optional>
 
@@ -25,6 +31,33 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+
+  flutter::MethodChannel<> request_channel(
+          flutter_controller_->engine()->messenger(), "io.github.mzsfighters.mam_ai/request_generation",
+          &flutter::StandardMethodCodec::GetInstance());
+
+  request_channel.SetMethodCallHandler(
+          [&](const flutter::MethodCall<>& call,
+             std::unique_ptr<flutter::MethodResult<>> result) {
+              event_sink_->Success(flutter::EncodableValue("Lorem ipsum dolor sit amet."));
+              result->Success(0);
+          });
+
+  flutter::EventChannel<> generation_channel(
+          flutter_controller_->engine()->messenger(), "io.github.mzsfighters.mam_ai/latest_message",
+          &flutter::StandardMethodCodec::GetInstance());
+
+  generation_channel.SetStreamHandler(
+          std::make_unique<flutter::StreamHandlerFunctions<>>(
+                  [this](auto arguments, auto events) {
+                      this->OnStreamListen(std::move(events));
+                      return nullptr;
+                  },
+                  [this](auto arguments) {
+                      this->OnStreamCancel();
+                      return nullptr;
+                  }));
+
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -38,6 +71,13 @@ bool FlutterWindow::OnCreate() {
 
   return true;
 }
+
+void FlutterWindow::OnStreamListen(
+        std::unique_ptr<flutter::EventSink<>>&& events) {
+  event_sink_ = std::move(events);
+}
+
+void FlutterWindow::OnStreamCancel() { event_sink_ = nullptr; }
 
 void FlutterWindow::OnDestroy() {
   if (flutter_controller_) {

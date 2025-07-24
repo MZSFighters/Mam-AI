@@ -2,6 +2,7 @@
 #define RUNNER_FLUTTER_WINDOW_H_
 
 #include <flutter/dart_project.h>
+#include <flutter/event_sink.h>
 #include <flutter/flutter_view_controller.h>
 
 #include <memory>
@@ -23,6 +24,12 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  // EventStream handlers:
+  void OnStreamListen(std::unique_ptr<flutter::EventSink<>>&& events);
+  void OnStreamCancel();
+
+  std::unique_ptr<flutter::EventSink<>> event_sink_;
+
   // The project to run.
   flutter::DartProject project_;
 
