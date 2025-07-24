@@ -11,7 +11,7 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   String? _latestMessage;
-  static const platform = MethodChannel("io.github.mzsfighters.mam_ai/test");
+  static const platform = MethodChannel("io.github.mzsfighters.mam_ai/request_generation");
   static const latestMessageStream = EventChannel("io.github.mzsfighters.mam_ai/latest_message");
   StreamSubscription? _latestMessageSubscription;
 

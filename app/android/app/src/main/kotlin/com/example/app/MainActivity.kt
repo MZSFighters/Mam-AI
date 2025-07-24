@@ -16,7 +16,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
-    private val channel = "io.github.mzsfighters.mam_ai/test"
+    private val channel = "io.github.mzsfighters.mam_ai/request_generation"
     private val latestMessageEventChannel = "io.github.mzsfighters.mam_ai/latest_message"
     private lateinit var ragStream: RagStream
 
