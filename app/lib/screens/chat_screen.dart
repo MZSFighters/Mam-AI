@@ -14,11 +14,16 @@ class _ChatPageState extends State<ChatPage> {
   static const platform = MethodChannel("io.github.mzsfighters.mam_ai/request_generation");
   static const latestMessageStream = EventChannel("io.github.mzsfighters.mam_ai/latest_message");
   StreamSubscription? _latestMessageSubscription;
-
-  final TextEditingController _textController = TextEditingController();
+  SearchController controller = SearchController();
+  bool _searchedBefore = false;
 
   Future<void> _generateResponse(String prompt) async {
     try {
+      setState(() {
+        _searchedBefore = true;
+        _latestMessage = null;
+      });
+
       await platform.invokeMethod<int>("generateResponse", prompt);
     } on PlatformException catch (e) {
       print("Error: $e");
@@ -27,13 +32,6 @@ class _ChatPageState extends State<ChatPage> {
 
   void _startListeningForLatestMessage() {
     _latestMessageSubscription = latestMessageStream.receiveBroadcastStream().listen(_onLatestMessageUpdate);
-  }
-
-  void _stopListeningForLatestMessage() {
-    _latestMessageSubscription?.cancel();
-    setState(() {
-      _latestMessage = '<channel broken>';
-    });
   }
 
   void _onLatestMessageUpdate(value) {
@@ -45,12 +43,29 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void dispose() {
     super.dispose();
-    _stopListeningForLatestMessage();
+    _latestMessageSubscription?.cancel();
   }
 
+  void onSubmit(String text) {
+    // For some reason, if we close an already closed view, it will make the
+    // entire screen black - I think that this is probably poorly-isolated code
+    // given that it affects the entire _screen_ and not only the widget it is
+    // supposed to control
+    if (controller.isOpen) {
+      controller.closeView(text);
+    } else {
+      // We still want to set the text even if the search view is closed
+      controller.text = text;
+    }
+
+    _generateResponse(text);
+  }
 
   @override
   Widget build(BuildContext context) {
+    var examples = ["Baby continuous crying", "Preparing for home birth", "Infection risks childbirth"];
+    var history = ["I searched this once", "I also searched this"];
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_latestMessageSubscription == null) {
         _startListeningForLatestMessage();
@@ -60,129 +75,238 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Medical Chat',
+          'MAM-AI clinical search',
           style: TextStyle(color: Colors.white),
         ),
         centerTitle: true,
-
         backgroundColor: Colors.blueAccent,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Chatbot welcome message
-              Column(
-                children: const [
-                  Icon(
-                    Icons.account_circle,
-                    size: 60,
-                    color: Colors.blueAccent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SearchAnchor(
+              shrinkWrap: true,
+              searchController: controller,
+              viewOnSubmitted: onSubmit,
+              builder: (BuildContext context, SearchController controller) {
+                return SearchBar(
+                  constraints: const BoxConstraints(minWidth: 360.0, minHeight: 56.0),
+                  leading: Padding(
+                    padding: const EdgeInsets.fromLTRB(8.0, 12.0, 0.0, 8.0),
+                    child: Icon(Icons.search),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Welcome to Mam AI!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: Colors.blueAccent,
-                    ),
-                  ),
-                ],
-              ),
-              // Medical chatbot themed input field, centered
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.lightBlue[50],
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.blueAccent, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.blueAccent.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                width: 400, // Fixed width for centering
-                child: Row(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Icon(
-                        Icons.medical_services,
-                        color: Colors.blueAccent,
-                      ),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: TextField(
-                          controller: _textController,
-                          textAlign: TextAlign.center,
-                          decoration: const InputDecoration(
-                            hintText: 'Ask your medical question...',
-                            hintStyle: TextStyle(
-                              color: Colors.blueGrey,
-                              fontStyle: FontStyle.italic,
-                            ),
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.send_rounded,
-                        color: Colors.blueAccent,
-                      ),
-                      onPressed: () {
-                        _generateResponse(_textController.text);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              // Suggested prompts
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 16),
+                  controller: controller,
+                  hintText: "Search in medical guidelines...",
+                  onSubmitted: onSubmit,
+                  onTap: controller.openView,
+                  onChanged: (_) => controller.openView(),
+                );
+              },
+              suggestionsBuilder: (BuildContext context, SearchController controller) {
+                RegExp regex = RegExp(RegExp.escape(controller.text.toLowerCase()));
+                return history
+                    .map((text) => SearchSuggestionTile(text, SuggestionType.history, onPressed: onSubmit))
+                    .followedBy(examples.map((text) => SearchSuggestionTile(text, SuggestionType.example, onPressed: onSubmit)))
+                    .where((tile) => regex.hasMatch(tile.text.toLowerCase()))
+                    .toList();
+              },
+            ),
 
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 6,
-                      ),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[100],
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'What should I do when the baby is crying?',
-                        style: TextStyle(
-                          color: Colors.blueAccent,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+            // Suggested prompts
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 16),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 10,
+                runSpacing: 10,
+                children: history
+                    .map((text) => SearchSuggestionChip(text, SuggestionType.history, onPressed: onSubmit))
+                    .followedBy(examples.map((text) => SearchSuggestionChip(text, SuggestionType.example, onPressed: onSubmit)))
+                    .toList()
               ),
-              const SizedBox(height: 20),
-              Text(_latestMessage ?? "<Not yet initialized>"),
-            ],
-          ),
+            ),
+
+            const SizedBox(height: 20),
+            if (_searchedBefore) SearchOutput(summary: _latestMessage),
+          ],
         ),
       ),
+    );
+  }
+}
+
+enum SuggestionType {
+  example,
+  history,
+}
+
+class SearchSuggestionTile extends StatelessWidget {
+  const SearchSuggestionTile(this.text, this.type, {super.key, required this.onPressed});
+
+  final String text;
+  final Function(String) onPressed;
+  final SuggestionType type;
+
+  @override
+  Widget build(BuildContext context) {
+    Icon icon;
+    Color? textColor;
+
+    switch(type) {
+      case SuggestionType.example:
+        // !!!IMPORTANT!!! If you want to modify any colours, please run them
+        // through WCAG contrast checker first:
+        // https://webaim.org/resources/contrastchecker/
+        // Spare a thought for legibility and accessibility
+
+        textColor = Color(0xFF0041B3);
+        icon = Icon(Icons.auto_awesome, color: textColor);
+        break;
+
+      case SuggestionType.history:
+        icon = Icon(Icons.history);
+        break;
+    }
+
+    return ListTile(
+      leading: icon,
+      title: Text(
+        text,
+        style: TextStyle(color: textColor)
+      ),
+      onTap: () => onPressed(text),
+    );
+  }
+}
+
+class SearchSuggestionChip extends StatelessWidget {
+  const SearchSuggestionChip(this.text, this.type, {super.key, required this.onPressed});
+
+  final String text;
+  final Function(String) onPressed;
+  final SuggestionType type;
+
+  @override
+  Widget build(BuildContext context) {
+    Icon icon;
+    Color? bgColor;
+    Color? textColor;
+    Color borderColor;
+
+    switch(type) {
+      case SuggestionType.example:
+        icon = Icon(Icons.auto_awesome);
+        bgColor = Colors.blue[50];
+
+        // Passes WCAG
+        textColor = Color(0xFF0041B3);
+        borderColor = Colors.blue[300]!;
+        break;
+
+      case SuggestionType.history:
+        // Greyest grey that still passed WCAG AAA (7:1 contrast ratio)
+        textColor = Colors.black.withAlpha(166);
+        icon = Icon(Icons.history, color: textColor);
+        bgColor = null;
+        borderColor = Colors.grey;
+        break;
+    }
+
+    return ChipTheme(
+      data: ChipThemeData(
+        labelStyle: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: borderColor),
+          borderRadius: BorderRadiusGeometry.circular(12),
+        ),
+      ),
+      child: ActionChip(
+        avatar: icon,
+        label: Text(
+          text,
+        ),
+        onPressed: () => onPressed(text),
+      ),
+    );
+  }
+}
+
+class SearchOutput extends StatelessWidget {
+  const SearchOutput({super.key, required this.summary});
+
+  final String? summary;
+
+  @override
+  Widget build(BuildContext context) {
+    if (summary == null) {
+      return Expanded(child: Center(child: SizedBox(width: 75, height: 75, child: CircularProgressIndicator())));
+    }
+
+    return Column(
+      children: [
+        Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.auto_awesome, color: Colors.purple),
+                title: const Text('Generated summary'),
+                subtitle: RichText(text: TextSpan(
+                    text: '⚠️ Read with care. ',
+                    style: DefaultTextStyle.of(context).style,
+                    children: [
+                      TextSpan(
+                          text: 'AI can make serious mistakes! ⚠️',
+                          style: TextStyle(fontWeight: FontWeight.bold)
+                      )
+                    ])
+                ),
+                contentPadding: const EdgeInsetsDirectional.only(start: 16.0, end: 24.0),
+              ),
+              Padding(
+                padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
+                child: Text(summary!),
+              )
+            ],
+          )
+        ),
+        Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const ListTile(
+                  leading: Icon(Icons.book),
+                  title: Text('Title of some guideline 1'),
+                  contentPadding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0),
+                ),
+                Padding(
+                  padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
+                  child: Text("... some text from the guideline (the original source used in RAG) ..."),
+                )
+              ],
+            )
+        ),
+        Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const ListTile(
+                  leading: Icon(Icons.book),
+                  title: Text('Title of some guideline 2'),
+                  contentPadding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0),
+                ),
+                Padding(
+                  padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
+                  child: Text("... some text from the guideline (the original source used in RAG) ..."),
+                )
+              ],
+            )
+        ),
+      ],
     );
   }
 }
