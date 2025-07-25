@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:markdown_widget/markdown_widget.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -95,7 +96,7 @@ class _ChatPageState extends State<ChatPage> {
                 return SearchBar(
                   constraints: const BoxConstraints(minWidth: 360.0, minHeight: 56.0),
                   leading: Padding(
-                    padding: const EdgeInsets.fromLTRB(8.0, 12.0, 0.0, 8.0),
+                    padding: const EdgeInsets.only(left: 8.0, top: 12.0, right: 0.0, bottom: 8.0),
                     child: Icon(Icons.search),
                   ),
                   controller: controller,
@@ -114,23 +115,27 @@ class _ChatPageState extends State<ChatPage> {
                     .toList();
               },
             ),
+            const SizedBox(height: 16),
 
-            // Suggested prompts
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 16),
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 10,
-                runSpacing: 10,
-                children: history
-                    .map((text) => SearchSuggestionChip(text, SuggestionType.history, onPressed: onSubmit))
-                    .followedBy(examples.map((text) => SearchSuggestionChip(text, SuggestionType.example, onPressed: onSubmit)))
-                    .toList()
+            Expanded(
+              child: SingleChildScrollView(
+                child:
+                  (_searchedBefore)
+                    ? SearchOutput(summary: _latestMessage)
+                    : Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      child: Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 5,
+                          runSpacing: 5,
+                          children: history
+                              .map((text) => SearchSuggestionChip(text, SuggestionType.history, onPressed: onSubmit))
+                              .followedBy(examples.map((text) => SearchSuggestionChip(text, SuggestionType.example, onPressed: onSubmit)))
+                              .toList()
+                      ),
+                    ),
               ),
-            ),
-
-            const SizedBox(height: 20),
-            if (_searchedBefore) SearchOutput(summary: _latestMessage),
+            )
           ],
         ),
       ),
@@ -243,7 +248,7 @@ class SearchOutput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (summary == null) {
-      return Expanded(child: Center(child: SizedBox(width: 75, height: 75, child: CircularProgressIndicator())));
+      return Center(child: SizedBox(width: 75, height: 75, child: CircularProgressIndicator()));
     }
 
     return Column(
@@ -269,7 +274,7 @@ class SearchOutput extends StatelessWidget {
               ),
               Padding(
                 padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
-                child: Text(summary!),
+                child: MarkdownBlock(data: summary!),
               )
             ],
           )
