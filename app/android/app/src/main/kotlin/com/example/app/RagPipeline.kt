@@ -171,9 +171,7 @@ class RagPipeline(application: Application) {
 
         // The prompt template for the RetrievalAndInferenceChain. It takes two inputs: {0}, which is the retrieved context, and {1}, which is the user's query.
         private const val PROMPT_TEMPLATE: String =
-            "You are a kind and helpful summarising assistant designed to support pregnant women and new mothers. Speak in simple, clear English. Give accurate, medically grounded information from reliable sources. Keep answers short and easy to understand.\n" +
-                    "\n" +
-                    "Always be calm, supportive, and non-judgmental.\n" +
+            "You are a smart search engine designed to support nurses and midwives in neonatal care. Speak in simple, clear English. Give accurate, medically grounded information from reliable sources. Keep answers short and easy to understand.\n" +
                     "\n" +
                     "If a user describes symptoms that could be urgent or dangerous—such as bleeding, severe pain, trouble breathing, fever in a newborn, or anything that sounds serious—tell them to contact a doctor, nurse, or emergency service right away. Do not try to diagnose emergencies.\n" +
                     "\n" +
@@ -190,6 +188,8 @@ class RagPipeline(application: Application) {
                     "Here is the context: {0}" +
                     "\n" +
                     "=============================\n" +
-                    "Here is the user's question: {1}"
+                    "Here is the user's question: {1}." +
+                    "============================\n" +
+                    "INCLUDE ALL INFORMATION IN THIS RESPONSE, SIMILAR TO A SEARCH ENGINE SUMMARY."
     }
 }

@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.LifecycleCoroutineScope
 import io.flutter.plugin.common.EventChannel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -13,7 +14,8 @@ import java.util.concurrent.Executors
 
 class RagStream(application: Application, val lifecycleScope: LifecycleCoroutineScope): EventChannel.StreamHandler {
     private val backgroundExecutor: Executor = Executors.newSingleThreadExecutor()
-    private val executorService = Executors.newSingleThreadExecutor()
+    private var currentJob: Job? = null;
+    private var currentPrompt: String? = null;
 
     val ragPipeline: RagPipeline by lazy { RagPipeline(application) }
     var events: EventChannel.EventSink? = null
@@ -26,8 +28,16 @@ class RagStream(application: Application, val lifecycleScope: LifecycleCoroutine
     override fun onCancel(arguments: Any?) {}
 
     fun generateResponse(prompt: String) {
-        executorService.submit {
-            lifecycleScope.launch {
+        synchronized(this) {
+            // We are already generating for this prompt
+            if (currentJob != null && currentPrompt == prompt) {
+                return
+            }
+
+            currentJob?.cancel()
+
+            currentPrompt = prompt;
+            currentJob = lifecycleScope.launch {
                 withContext(backgroundExecutor.asCoroutineDispatcher()) {
                     ragPipeline
                         .generateResponse(prompt) { response, done ->
@@ -38,6 +48,13 @@ class RagStream(application: Application, val lifecycleScope: LifecycleCoroutine
                                 events?.success(
                                     response.text
                                 )
+
+                                if (done) {
+                                    synchronized(this) {
+                                        currentJob = null;
+                                        currentPrompt = null;
+                                    }
+                                }
                             }
                         }
                 }
