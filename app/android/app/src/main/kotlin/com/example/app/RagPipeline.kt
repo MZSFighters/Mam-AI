@@ -24,18 +24,16 @@ import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
-import kotlinx.coroutines.asCoroutineDispatcher
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.Executors
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.guava.await
-import kotlinx.coroutines.withContext
 import java.util.Optional
 import kotlin.jvm.optionals.getOrNull
 
 /** The RAG pipeline for LLM generation. */
-class RagPipeline(private val application: Application) {
+class RagPipeline(application: Application) {
     private val mediaPipeLanguageModelOptions: LlmInferenceOptions =
         LlmInferenceOptions.builder().setModelPath(
             GEMMA_MODEL_PATH
