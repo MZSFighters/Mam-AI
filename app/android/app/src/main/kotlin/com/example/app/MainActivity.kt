@@ -16,11 +16,18 @@ class MainActivity : FlutterActivity() {
         ragStream = RagStream(application, lifecycleScope)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channel).setMethodCallHandler {
                 call, result ->
-            if (call.method == "generateResponse") {
-                ragStream.generateResponse(call.arguments<String>()!!)
-                result.success(0)
-            } else {
-                result.notImplemented()
+            when (call.method) {
+                "ensureInit" -> {
+                    ragStream.ensureLlmInit()
+                    result.success(0)
+                }
+                "generateResponse" -> {
+                    ragStream.generateResponse(call.arguments<String>()!!)
+                    result.success(0)
+                }
+                else -> {
+                    result.notImplemented()
+                }
             }
         }
 

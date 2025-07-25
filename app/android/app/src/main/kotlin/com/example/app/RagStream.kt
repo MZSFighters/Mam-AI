@@ -14,18 +14,22 @@ import java.util.concurrent.Executors
 
 class RagStream(application: Application, val lifecycleScope: LifecycleCoroutineScope): EventChannel.StreamHandler {
     private val backgroundExecutor: Executor = Executors.newSingleThreadExecutor()
-    private var currentJob: Job? = null;
-    private var currentPrompt: String? = null;
+    private var currentJob: Job? = null
+    private var currentPrompt: String? = null
 
     val ragPipeline: RagPipeline by lazy { RagPipeline(application) }
     var events: EventChannel.EventSink? = null
 
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-        ragPipeline // Force lazy initialization to happen now
+        ensureLlmInit()
         this.events = events
     }
 
     override fun onCancel(arguments: Any?) {}
+
+    fun ensureLlmInit() {
+        ragPipeline // Force lazy initialization to happen now
+    }
 
     fun generateResponse(prompt: String) {
         synchronized(this) {
@@ -36,7 +40,7 @@ class RagStream(application: Application, val lifecycleScope: LifecycleCoroutine
 
             currentJob?.cancel()
 
-            currentPrompt = prompt;
+            currentPrompt = prompt
             currentJob = lifecycleScope.launch {
                 withContext(backgroundExecutor.asCoroutineDispatcher()) {
                     ragPipeline
@@ -51,8 +55,8 @@ class RagStream(application: Application, val lifecycleScope: LifecycleCoroutine
 
                                 if (done) {
                                     synchronized(this) {
-                                        currentJob = null;
-                                        currentPrompt = null;
+                                        currentJob = null
+                                        currentPrompt = null
                                     }
                                 }
                             }

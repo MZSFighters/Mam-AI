@@ -1,3 +1,4 @@
+import 'package:app/screens/chat_screen.dart';
 import 'package:flutter/material.dart';
 
 class IntroPage extends StatelessWidget {
@@ -5,6 +6,10 @@ class IntroPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ChatPage.requestLlmPreinit();
+    });
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(

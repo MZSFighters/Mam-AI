@@ -8,6 +8,11 @@ class ChatPage extends StatefulWidget {
 
   @override
   State<ChatPage> createState() => _ChatPageState();
+
+  static void requestLlmPreinit() {
+    print("init LLM");
+    _ChatPageState.platform.invokeMethod("ensureInit");
+  }
 }
 
 class _ChatPageState extends State<ChatPage> {
