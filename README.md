@@ -40,8 +40,11 @@ This is a rough sketch of how you could reproduce what we created in this projec
 
 - [Fine tuning Dataset](https://drive.google.com/drive/folders/1vdheVGdrOTXwekaIrSkve7JF28Tpq1Xf?usp=sharing)
  - Set Up a Python 3.10 Virtual Environment:
-   - `# Create virtual environment with Python 3.10
-      python3.10 -m venv .venv`
+   - `python3.10 -m venv .venv`
+   - Windows: `.venv\Scripts\activate`
+     Linux: `source .venv/bin/activate`
+ - Install core dependencies
+   - `pip install -r requirements.txt` 
 
 
 ## Remote resources 
