@@ -96,8 +96,8 @@ class _SearchPageState extends State<SearchPage> {
       "Baby continuous crying",
       "Preparing for home birth",
       "Infection risks childbirth",
-      "bleeding after delivery",
-      "newborn not breathing"
+      "Bleeding after delivery",
+      "Newborn not breathing"
     ];
     var history = []; // Search history TBD
 
@@ -295,7 +295,7 @@ class SearchOutput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (summary == null) {
-      return Center(child: SizedBox(width: 75, height: 75, child: CircularProgressIndicator()));
+      return Center(child: SizedBox(width: 75, height: 75, child: CircularProgressIndicator(color: Color(0xffcc5500))));
     }
 
     final retrievedDocs = retrievedDocuments.map((doc) {

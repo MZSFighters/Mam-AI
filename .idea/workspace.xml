@@ -9,18 +9,11 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f6c84273-e6b8-440a-80d4-eeada917f45c" name="Changes" comment="more edits">
+    <list default="true" id="f6c84273-e6b8-440a-80d4-eeada917f45c" name="Changes" comment="documentation">
+      <change beforePath="$USER_HOME$/Coding/flutter/packages/flutter_tools/gradle/flutter_proguard_rules.pro" beforeDir="false" afterPath="$USER_HOME$/Coding/flutter/packages/flutter_tools/gradle/flutter_proguard_rules.pro" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/GEMMA-DISTRIBUTION-NOTICE" beforeDir="false" afterPath="$PROJECT_DIR$/GEMMA-DISTRIBUTION-NOTICE" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/android/app/src/main/assets/mamai_context.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/android/app/src/main/assets/mamai_trim.txt" beforeDir="false" afterPath="$PROJECT_DIR$/app/android/app/src/main/assets/mamai_trim.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/android/app/src/main/kotlin/com/example/app/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/android/app/src/main/kotlin/com/example/app/MainActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/android/app/src/main/kotlin/com/example/app/RagPipeline.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/android/app/src/main/kotlin/com/example/app/RagPipeline.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/android/app/src/main/kotlin/com/example/app/RagStream.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/android/app/src/main/kotlin/com/example/app/RagStream.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/app/lib/main.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/lib/screens/chat_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/app/lib/screens/search_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/lib/screens/intro_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/app/lib/screens/intro_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/lib/screens/search_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/app/lib/screens/search_page.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -101,7 +94,7 @@
         <entry key="$PROJECT_DIR$" value="dx/windows-stub" />
       </map>
     </option>
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$USER_HOME$/Coding/flutter" />
     <option name="ROOT_SYNC" value="DONT_SYNC" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
@@ -141,7 +134,7 @@
     "cidr.known.project.marker": "true",
     "com.google.services.firebase.aqiPopupShown": "true",
     "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "comment-code",
+    "git-widget-placeholder": "stable",
     "ignore.virus.scanning.warn.message": "true",
     "io.flutter.reload.alreadyRun": "true",
     "last_opened_file_path": "C:/Users/caelm/StudioProjects/Mam-AI",
@@ -637,7 +630,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754507550317</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="documentation">
+      <option name="closed" value="true" />
+      <created>1754512941639</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1754512941639</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -654,7 +655,8 @@
     <MESSAGE value="racing the submission deadline ;)" />
     <MESSAGE value="add some config files" />
     <MESSAGE value="more edits" />
-    <option name="LAST_COMMIT_MESSAGE" value="more edits" />
+    <MESSAGE value="documentation" />
+    <option name="LAST_COMMIT_MESSAGE" value="documentation" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

@@ -167,7 +167,7 @@ class _IntroPageState extends State<IntroPage> {
             SizedBox(
               width: 64,
               height: 64,
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(color: orange),
             )
           ],
         );
