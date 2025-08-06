@@ -14,7 +14,12 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Initialise the RAG output stream
         ragStream = RagStream(application, lifecycleScope)
+
+        // Two methods can be invoked from dart - one to make the LLM load, and one to get a
+        // response to a search query
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channel).setMethodCallHandler {
                 call, result ->
             when (call.method) {
