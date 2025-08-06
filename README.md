@@ -37,7 +37,8 @@ This is a rough sketch of how you could reproduce what we created in this projec
 - Start an nginx server with a self-signed cert and the files (see below) in `/var/www/html/`
 
 **Finetuning (not included in app):**
-- 
+
+- [Fine tuning Dataset](https://drive.google.com/drive/folders/1vdheVGdrOTXwekaIrSkve7JF28Tpq1Xf?usp=sharing)
 
 ## Remote resources 
 
