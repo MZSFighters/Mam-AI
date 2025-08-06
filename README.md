@@ -44,8 +44,9 @@ This is a rough sketch of how you could reproduce what we created in this projec
    - Windows: `.venv\Scripts\activate`
      Linux: `source .venv/bin/activate`
  - Install core dependencies
-   - `pip install -r requirements.txt` 
-
+   - `pip install -r requirements.txt`
+ - Run the Training Script
+   - `python train.py` 
 
 ## Remote resources 
 
