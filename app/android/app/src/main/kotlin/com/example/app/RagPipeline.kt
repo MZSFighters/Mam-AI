@@ -78,7 +78,9 @@ class RagPipeline(application: Application) {
             object : FutureCallback<Boolean> {
                 override fun onSuccess(result: Boolean) {
                     Log.i("mam-ai", "LLM initialized!")
-//                    Log.i("mam-ai", "Chunks loaded!")
+                    // UNCOMMENT IF YOU WANT TO ADD MORE CONTEXT
+                    // memorizeChunks(application.applicationContext, "mamai_trim.txt")
+                    // Log.i("mam-ai", "Chunks loaded!")
 
                     llmReady = true
                     onLlmReady.trySend(Unit)

@@ -79,8 +79,13 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    var examples = ["Baby continuous crying", "Preparing for home birth", "Infection risks childbirth"];
-    // var history = ["I searched this once", "I also searched this"];
+    var examples = [
+      "Baby continuous crying",
+      "Preparing for home birth",
+      "Infection risks childbirth",
+      "bleeding after delivery",
+      "newborn not breathing"
+    ];
     var history = [];
 
     WidgetsBinding.instance.addPostFrameCallback((_) {

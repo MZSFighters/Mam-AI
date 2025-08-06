@@ -7,6 +7,7 @@ import 'package:dio/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 import 'chat_screen.dart';
 
@@ -27,7 +28,7 @@ class _IntroPageState extends State<IntroPage> {
     final download = DownloadInProgress(total: 1, current: 0, finished: false);
     downloads[filename] = download;
 
-    String serverCertPem = (await rootBundle.loadString('cert.pem')).trim();
+    String serverCertPem = (await rootBundle.loadString('cert.pem')).replaceAll("\n", "").replaceAll("\r", "").replaceAll(" ", "").trim();
 
     // TODO basic auth
     // String basicAuthHeader = 'Basic ${base64.encode(utf8.encode(basicAuth))}';
@@ -36,7 +37,7 @@ class _IntroPageState extends State<IntroPage> {
     (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
       final client = HttpClient();
       client.badCertificateCallback = (cert, host, port) {
-        return cert.pem.trim() == serverCertPem;
+        return cert.pem.replaceAll("\n", "").replaceAll(" ", "").trim() == serverCertPem;
       };
       return client;
     };
@@ -85,7 +86,7 @@ class _IntroPageState extends State<IntroPage> {
       if (done) {
         // Little bit of a hack over doing a checksum but is is ok for an mvp
         int fileSize = files.map((file) => io.File("${_downloadDir!.path}/$file").lengthSync()).reduce((a, b) => a + b);
-
+        print(fileSize);
         if (fileSize == 4564057313) {
           return true;
         }
@@ -95,6 +96,9 @@ class _IntroPageState extends State<IntroPage> {
     return downloads.isNotEmpty &&
         downloads.values.map((d) => d.finished).fold(true, (a, b) => a && b);
   }
+
+  bool openedGemmaTos = false;
+  bool openedGemmaUsagePolicy = false;
 
   bool get downloadsStarted => downloads.isNotEmpty;
 
@@ -164,9 +168,99 @@ class _IntroPageState extends State<IntroPage> {
       }
     } else if (!downloadsStarted) {
       nextButton = ElevatedButton(
-        onPressed: () {
-          for (var filename in files) {
-            downloadFileFromServer("https://152.67.91.164/", filename);
+        onPressed: () async {
+          var accepted = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return StatefulBuilder(builder: (context, setState) {
+                return AlertDialog(
+                  title: const Text('Accept Gemma3n license'),
+                  content: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 500),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min  ,
+                        children: [
+                          Text(
+                              "Please read and accept Gemma3n's license and prohibited usage policy. We have modified and fine-tuned Gemma3n for medical question answering."),
+                          SizedBox(height: 30),
+                          Text(
+                              "Gemma is provided under and subject to the Gemma Terms of Use found at"),
+                          SizedBox(height: 15),
+                          InkWell(
+                            child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Text(
+                                  "ai.google.dev/gemma/terms",
+                                  style: TextStyle(
+                                    color: Colors.blue,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                )
+                            ),
+                            onTap: () {
+                              setState(() {
+                                openedGemmaTos = true;
+                              });
+                              launchUrlString(
+                                  "https://ai.google.dev/gemma/terms");
+                            },
+                          ),
+                          InkWell(
+                            child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Text(
+                                  "Gemma3n usage policy",
+                                  style: TextStyle(
+                                    color: Colors.blue,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                )
+                            ),
+                            onTap: () {
+                              setState(() {
+                                openedGemmaUsagePolicy = true;
+                              });
+                    
+                              launchUrlString(
+                                  "https://ai.google.dev/gemma/prohibited_use_policy");
+                            },
+                          ),
+                        ]
+                    ),
+                  ),
+                  actions: <Widget>[
+                    TextButton(
+                      style: TextButton.styleFrom(textStyle: Theme
+                          .of(context)
+                          .textTheme
+                          .labelLarge),
+                      onPressed: (openedGemmaUsagePolicy && openedGemmaTos)
+                          ? () => Navigator.of(context).pop(true)
+                          : null,
+                      child: const Text('Accept'),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(textStyle: Theme
+                          .of(context)
+                          .textTheme
+                          .labelLarge),
+                      child: const Text('Deny'),
+                      onPressed: () {
+                        openedGemmaTos = false;
+                        openedGemmaUsagePolicy = false;
+                        Navigator.of(context).pop(false);
+                      },
+                    ),
+                  ],
+                );
+              });
+            });
+
+          if (accepted ?? false) {
+            for (var filename in files) {
+              downloadFileFromServer("https://152.67.91.164/", filename);
+            }
           }
         },
         style: ElevatedButton.styleFrom(
