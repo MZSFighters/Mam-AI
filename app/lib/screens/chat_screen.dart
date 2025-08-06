@@ -13,10 +13,15 @@ class ChatPage extends StatefulWidget {
     print("init LLM");
     _ChatPageState.platform.invokeMethod("ensureInit");
   }
+
+  static Future<void> waitForLlmInit() {
+    return _ChatPageState.platform.invokeMethod("ensureInit");
+  }
 }
 
 class _ChatPageState extends State<ChatPage> {
   String? _latestMessage;
+  List<String> _retrievedDocuments = List.empty();
   static const platform = MethodChannel("io.github.mzsfighters.mam_ai/request_generation");
   static const latestMessageStream = EventChannel("io.github.mzsfighters.mam_ai/latest_message");
   StreamSubscription? _latestMessageSubscription;
@@ -42,7 +47,12 @@ class _ChatPageState extends State<ChatPage> {
 
   void _onLatestMessageUpdate(value) {
     setState(() {
-      _latestMessage = value;
+      if (value.containsKey("response")) {
+        _latestMessage = value["response"];
+      } else {
+        List<Object?> docs = value["results"];
+        _retrievedDocuments = docs.map<String>((a) => a as String).toList();
+      }
     });
   }
 
@@ -70,7 +80,8 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     var examples = ["Baby continuous crying", "Preparing for home birth", "Infection risks childbirth"];
-    var history = ["I searched this once", "I also searched this"];
+    // var history = ["I searched this once", "I also searched this"];
+    var history = [];
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_latestMessageSubscription == null) {
@@ -78,70 +89,84 @@ class _ChatPageState extends State<ChatPage> {
       }
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'MAM-AI clinical search',
-          style: TextStyle(color: Colors.white),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.blueAccent,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SearchAnchor(
-              shrinkWrap: true,
-              searchController: controller,
-              viewOnSubmitted: onSubmit,
-              builder: (BuildContext context, SearchController controller) {
-                return SearchBar(
-                  constraints: const BoxConstraints(minWidth: 360.0, minHeight: 56.0),
-                  leading: Padding(
-                    padding: const EdgeInsets.only(left: 8.0, top: 12.0, right: 0.0, bottom: 8.0),
-                    child: Icon(Icons.search),
-                  ),
-                  controller: controller,
-                  hintText: "Search in medical guidelines...",
-                  onSubmitted: onSubmit,
-                  onTap: controller.openView,
-                  onChanged: (_) => controller.openView(),
-                );
-              },
-              suggestionsBuilder: (BuildContext context, SearchController controller) {
-                RegExp regex = RegExp(RegExp.escape(controller.text.toLowerCase()));
-                return history
-                    .map((text) => SearchSuggestionTile(text, SuggestionType.history, onPressed: onSubmit))
-                    .followedBy(examples.map((text) => SearchSuggestionTile(text, SuggestionType.example, onPressed: onSubmit)))
-                    .where((tile) => regex.hasMatch(tile.text.toLowerCase()))
-                    .toList();
-              },
-            ),
-            const SizedBox(height: 16),
-
-            Expanded(
-              child: SingleChildScrollView(
-                child:
-                  (_searchedBefore)
-                    ? SearchOutput(summary: _latestMessage)
-                    : Container(
-                      margin: const EdgeInsets.only(bottom: 20),
-                      child: Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 5,
-                          runSpacing: 5,
-                          children: history
-                              .map((text) => SearchSuggestionChip(text, SuggestionType.history, onPressed: onSubmit))
-                              .followedBy(examples.map((text) => SearchSuggestionChip(text, SuggestionType.example, onPressed: onSubmit)))
-                              .toList()
-                      ),
-                    ),
+    return Material(
+      child: Scaffold(
+        appBar: AppBar(
+          toolbarHeight: 64,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: Colors.white,
+                child: Image.asset('images/logo.png', height: 42),
               ),
-            )
-          ],
+              SizedBox(width: 10),
+              const Text(
+                'MAM-AI clinical search',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.deepOrange,
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SearchAnchor(
+                shrinkWrap: true,
+                searchController: controller,
+                viewOnSubmitted: onSubmit,
+                builder: (BuildContext context, SearchController controller) {
+                  return SearchBar(
+                    constraints: const BoxConstraints(minWidth: 360.0, minHeight: 56.0),
+                    leading: Padding(
+                      padding: const EdgeInsets.only(left: 8.0, top: 12.0, right: 0.0, bottom: 8.0),
+                      child: Icon(Icons.search),
+                    ),
+                    controller: controller,
+                    hintText: "Search in medical guidelines...",
+                    onSubmitted: onSubmit,
+                    onTap: controller.openView,
+                    onChanged: (_) => controller.openView(),
+                  );
+                },
+                suggestionsBuilder: (BuildContext context, SearchController controller) {
+                  RegExp regex = RegExp(RegExp.escape(controller.text.toLowerCase()));
+                  return history
+                      .map((text) => SearchSuggestionTile(text, SuggestionType.history, onPressed: onSubmit))
+                      .followedBy(examples.map((text) => SearchSuggestionTile(text, SuggestionType.example, onPressed: onSubmit)))
+                      .where((tile) => regex.hasMatch(tile.text.toLowerCase()))
+                      .toList();
+                },
+              ),
+              const SizedBox(height: 16),
+
+              Expanded(
+                child: SingleChildScrollView(
+                  child:
+                    (_searchedBefore)
+                      ? SearchOutput(summary: _latestMessage, retrievedDocuments: _retrievedDocuments)
+                      : Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        child: Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 5,
+                            runSpacing: 5,
+                            children: history
+                                .map((text) => SearchSuggestionChip(text, SuggestionType.history, onPressed: onSubmit))
+                                .followedBy(examples.map((text) => SearchSuggestionChip(text, SuggestionType.example, onPressed: onSubmit)))
+                                .toList()
+                        ),
+                      ),
+                ),
+              )
+            ],
+          ),
         ),
       ),
     );
@@ -167,12 +192,7 @@ class SearchSuggestionTile extends StatelessWidget {
 
     switch(type) {
       case SuggestionType.example:
-        // !!!IMPORTANT!!! If you want to modify any colours, please run them
-        // through WCAG contrast checker first:
-        // https://webaim.org/resources/contrastchecker/
-        // Spare a thought for legibility and accessibility
-
-        textColor = Color(0xFF0041B3);
+        textColor = Color(0xff994000);
         icon = Icon(Icons.auto_awesome, color: textColor);
         break;
 
@@ -209,15 +229,13 @@ class SearchSuggestionChip extends StatelessWidget {
     switch(type) {
       case SuggestionType.example:
         icon = Icon(Icons.auto_awesome);
-        bgColor = Colors.blue[50];
+        bgColor = Colors.orange[50];
 
-        // Passes WCAG
-        textColor = Color(0xFF0041B3);
-        borderColor = Colors.blue[300]!;
+        textColor = Color(0xffcc5500);
+        borderColor = Colors.orange[300]!;
         break;
 
       case SuggestionType.history:
-        // Greyest grey that still passed WCAG AAA (7:1 contrast ratio)
         textColor = Colors.black.withAlpha(166);
         icon = Icon(Icons.history, color: textColor);
         bgColor = null;
@@ -246,9 +264,10 @@ class SearchSuggestionChip extends StatelessWidget {
 }
 
 class SearchOutput extends StatelessWidget {
-  const SearchOutput({super.key, required this.summary});
+  const SearchOutput({super.key, required this.summary, required this.retrievedDocuments});
 
   final String? summary;
+  final List<String> retrievedDocuments;
 
   @override
   Widget build(BuildContext context) {
@@ -256,15 +275,40 @@ class SearchOutput extends StatelessWidget {
       return Center(child: SizedBox(width: 75, height: 75, child: CircularProgressIndicator()));
     }
 
-    return Column(
-      children: [
-        Card(
+    final retrievedDocs = retrievedDocuments.map((doc) {
+      return Card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ListTile(
-                leading: const Icon(Icons.auto_awesome, color: Colors.purple),
-                title: const Text('Generated summary'),
+                leading: const Icon(Icons.book),
+                title: const Text('Information from guidelines'),
+                contentPadding: const EdgeInsetsDirectional.only(start: 16.0, end: 24.0),
+              ),
+              Padding(
+                padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
+                child: Text(doc, style: TextStyle(fontSize: 16)),
+              )
+            ],
+          )
+      );
+    });
+
+    Color lightOrange = Color(0xffff7f50);
+    Color darkOrange = Color(0xffcc5500);
+
+    return Column(
+      children: [
+        Card(
+          elevation: 2.0,
+          surfaceTintColor: lightOrange,
+          shadowColor: lightOrange,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                leading: Icon(Icons.auto_awesome, color: darkOrange, size: 40),
+                title: const Text('Generated summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),),
                 subtitle: RichText(text: TextSpan(
                     text: '⚠️ Read with care. ',
                     style: DefaultTextStyle.of(context).style,
@@ -279,43 +323,19 @@ class SearchOutput extends StatelessWidget {
               ),
               Padding(
                 padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
-                child: MarkdownBlock(data: summary!),
+                child: MarkdownBlock(
+                  data: summary!,
+                  config: MarkdownConfig(
+                    configs: [
+                      PConfig(textStyle: TextStyle(fontSize: 18))
+                    ]
+                  ),
+                ),
               )
             ],
           )
         ),
-        Card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const ListTile(
-                  leading: Icon(Icons.book),
-                  title: Text('Title of some guideline 1'),
-                  contentPadding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0),
-                ),
-                Padding(
-                  padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
-                  child: Text("... some text from the guideline (the original source used in RAG) ..."),
-                )
-              ],
-            )
-        ),
-        Card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const ListTile(
-                  leading: Icon(Icons.book),
-                  title: Text('Title of some guideline 2'),
-                  contentPadding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0),
-                ),
-                Padding(
-                  padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
-                  child: Text("... some text from the guideline (the original source used in RAG) ..."),
-                )
-              ],
-            )
-        ),
+        ...retrievedDocs,
       ],
     );
   }
