@@ -1,5 +1,19 @@
 # mam-ai
 
+MAM-AI is a smart search application developed for nurses and midwives in Zanzibar. This repository
+is an MVP for this, as submitted to the [Gemma3n Kaggle challenge](https://www.kaggle.com/competitions/google-gemma-3n-hackathon).
+
+There are two main folders: `rag` and `app`. `rag` is used for document preprocessing and `app`
+contains the actual app.
+
+## Install instructions
+
+Under the GitHub releases tab there is an apk to install :) It may not work on an emulator (according
+to the [Google AI Edge RAG](ai.google.dev/edge/mediapipe/solutions/genai/rag/android) documentation)
+since the underlying inference library needs real hardware.
+
+You can also build it yourself with `flutter build apk` in the `app/` directory.
+
 ## Reproduction instructions
 
 This is a rough sketch of how you could reproduce what we created in this project.
@@ -23,6 +37,11 @@ This is a rough sketch of how you could reproduce what we created in this projec
 
 
 ## Remote resources 
+
+> **Note: because of the requirements to accept the Gemma3n license before using it, we do not
+provide the model files in this repo.** Hence, we host everything on a temporary VPS which will only
+remain up during judging. If you are uncomfortable with this, you can simply replace the link with
+your own endpoint. 
 
 We host copies of various models on a temporary VPS. The app fetches these the first time it
 launches. This is just done for simplicity's sake.

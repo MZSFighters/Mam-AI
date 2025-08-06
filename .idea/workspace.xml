@@ -9,8 +9,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f6c84273-e6b8-440a-80d4-eeada917f45c" name="Changes" comment="final?">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="f6c84273-e6b8-440a-80d4-eeada917f45c" name="Changes" comment="sketch reproduction">
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -652,7 +651,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754514032070</updated>
     </task>
-    <option name="localTasksCounter" value="17" />
+    <task id="LOCAL-00017" summary="sketch reproduction">
+      <option name="closed" value="true" />
+      <created>1754514380364</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1754514380364</updated>
+    </task>
+    <option name="localTasksCounter" value="18" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -671,6 +678,7 @@
     <MESSAGE value="more edits" />
     <MESSAGE value="documentation" />
     <MESSAGE value="final?" />
-    <option name="LAST_COMMIT_MESSAGE" value="final?" />
+    <MESSAGE value="sketch reproduction" />
+    <option name="LAST_COMMIT_MESSAGE" value="sketch reproduction" />
   </component>
 </project>
