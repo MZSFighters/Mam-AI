@@ -9,9 +9,10 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f6c84273-e6b8-440a-80d4-eeada917f45c" name="Changes" comment="add extra files">
+    <list default="true" id="f6c84273-e6b8-440a-80d4-eeada917f45c" name="Changes" comment="give internet permission">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/android/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/android/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/android/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/app/android/app/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/lib/screens/intro_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/app/lib/screens/intro_page.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -678,8 +679,27 @@
       <option name="project" value="LOCAL" />
       <updated>1754517758503</updated>
     </task>
-    <option name="localTasksCounter" value="20" />
+    <task id="LOCAL-00020" summary="give internet permission">
+      <option name="closed" value="true" />
+      <created>1754521712848</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1754521712848</updated>
+    </task>
+    <option name="localTasksCounter" value="21" />
     <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Merge pull request #2 from MZSFighters/rag&#10;&#10;Mobile app setup" />
@@ -700,6 +720,7 @@
     <MESSAGE value="sketch reproduction" />
     <MESSAGE value="some stuff for readme" />
     <MESSAGE value="add extra files" />
-    <option name="LAST_COMMIT_MESSAGE" value="add extra files" />
+    <MESSAGE value="give internet permission" />
+    <option name="LAST_COMMIT_MESSAGE" value="give internet permission" />
   </component>
 </project>

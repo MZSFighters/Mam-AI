@@ -162,7 +162,7 @@ class _IntroPageState extends State<IntroPage> {
 
         nextButton = Column(
           children: [
-            Text("LLM loading..."),
+            Text("LLM loading (may take a while the first time)..."),
             SizedBox(height: 20),
             SizedBox(
               width: 64,
