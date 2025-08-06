@@ -1,4 +1,4 @@
-import 'package:app/screens/chat_screen.dart';
+import 'package:app/screens/search_page.dart';
 import 'package:app/screens/intro_page.dart';
 import 'package:flutter/material.dart';
 
@@ -30,7 +30,7 @@ class ChatApp extends StatelessWidget {
       ),
       home: const IntroPage(),
       routes: {
-        '/chat': (context) => const ChatPage(),
+        '/chat': (context) => const SearchPage(),
       },
     );
   }

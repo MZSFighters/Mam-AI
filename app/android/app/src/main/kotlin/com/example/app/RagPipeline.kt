@@ -72,6 +72,7 @@ class RagPipeline(application: Application) {
     // https://stackoverflow.com/a/55421973
     val onLlmReady = Channel<Unit>(0)
 
+    /// Load the model
     init {
         Futures.addCallback(
             mediaPipeLanguageModel.initialize(),
@@ -93,6 +94,7 @@ class RagPipeline(application: Application) {
         )
     }
 
+    // Memorise the given file (from inside the app context)
     // Unused at the moment, since we ship a pre-memorised sqlite DB, but this is the code that
     // could be used to memorise more documents on the fly
     fun memorizeChunks(context: Context, filename: String) {
@@ -148,6 +150,9 @@ class RagPipeline(application: Application) {
                 onLlmReady.receive()
             }
 
+            // Get relevant docs - this is actually duplicated by the retrievalAndInferenceChain.invoke
+            // call but we also want to show the docs themselves to the user, so we have to do it
+            // twice to get the actual output (usually it's passed to the model only)
             val retrievalRequest =
                 RetrievalRequest.create(
                     prompt,
@@ -156,7 +161,7 @@ class RagPipeline(application: Application) {
             val retrievalResults = textMemory.retrieveResults(retrievalRequest).await().getEntities().map { e -> e.data }.toList()
             retrievalListener(retrievalResults);
 
-            // TODO??? include?
+            // Get the model output
             retrievalAndInferenceChain.invoke(retrievalRequest, generationListener).await().text
         }
 

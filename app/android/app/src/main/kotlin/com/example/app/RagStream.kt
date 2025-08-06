@@ -14,12 +14,23 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import kotlin.collections.hashMapOf
 
+/**
+ * The eventchannel stream from Android backend <-> Flutter. Flutter subscribes to this to get
+ * generation output as it is being generated
+ */
 class RagStream(application: Application, val lifecycleScope: LifecycleCoroutineScope): EventChannel.StreamHandler {
     private val backgroundExecutor: Executor = Executors.newSingleThreadExecutor()
+    // Currently executing prompt future - we can't execute two at once else the mediapipe
+    // backend crashes
     private var currentJob: Job? = null
+    // Current prompt that is executing - we store this to avoid re-creating the current execution
+    // if there is already one running with the exact same prompt (e.g. if user clicks search twice
+    // for the same query)
     private var currentPrompt: String? = null
 
     val ragPipeline: RagPipeline by lazy { RagPipeline(application) }
+
+    // Channel sink that sends to flutter
     var latestGeneration: EventChannel.EventSink? = null
 
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -29,6 +40,7 @@ class RagStream(application: Application, val lifecycleScope: LifecycleCoroutine
 
     override fun onCancel(arguments: Any?) {}
 
+    // Wait for the LLM to initialise
     suspend fun waitForLlmInit() {
         // Wait for llm to be ready via rendezvous channel
         if (!ragPipeline.llmReady) {
@@ -40,9 +52,7 @@ class RagStream(application: Application, val lifecycleScope: LifecycleCoroutine
         ragPipeline // Force lazy initialization to happen now
     }
 
-    val isReady: Boolean
-        get() = this.ragPipeline.llmReady;
-
+    // Generate a response to the prompt, sending updates to Flutter as it is being generated
     fun generateResponse(prompt: String) {
         synchronized(this) {
             // We are already generating for this prompt

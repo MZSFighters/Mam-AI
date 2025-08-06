@@ -9,8 +9,20 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
-import 'chat_screen.dart';
+import 'search_page.dart';
 
+/// The intro page handles licensing & model download.
+///
+/// The flow is essentially:
+/// - Load download directory (short loading spinner from user POV)
+/// - [If not downloaded]
+///     - Show download button
+///     - [User clicks download] Show license dialog
+///     - [User clicks accept] Start download
+///     - Show progress bar
+///     - [Download finishes]
+/// - Show start chat button
+/// - User moves onto the ChatPage screen
 class IntroPage extends StatefulWidget {
   const IntroPage({super.key});
 
@@ -18,20 +30,20 @@ class IntroPage extends StatefulWidget {
   State<IntroPage> createState() => _IntroPageState();
 }
 
-
 class _IntroPageState extends State<IntroPage> {
   Map<String, DownloadInProgress> downloads = HashMap();
 
+  /// Downloads a file from our remote server (easiest way for us to upload
+  /// everything)
   downloadFileFromServer(String baseUrl, String filename) async {
     Directory directory = await downloadDir();
 
     final download = DownloadInProgress(total: 1, current: 0, finished: false);
     downloads[filename] = download;
 
+    // We are using a self-signed cert so to trust only that we create our own
+    // dio HTTP client and check that the cert matches our self-signed cert
     String serverCertPem = (await rootBundle.loadString('cert.pem')).replaceAll("\n", "").replaceAll("\r", "").replaceAll(" ", "").trim();
-
-    // TODO basic auth
-    // String basicAuthHeader = 'Basic ${base64.encode(utf8.encode(basicAuth))}';
 
     final dio = Dio();
     (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
@@ -42,6 +54,10 @@ class _IntroPageState extends State<IntroPage> {
       return client;
     };
 
+    // TODO basic auth - we can gate the model if required with a password
+    // String basicAuthHeader = 'Basic ${base64.encode(utf8.encode(basicAuth))}';
+
+    // Send the request
     await dio
         .download(
           baseUrl + filename,
@@ -59,15 +75,21 @@ class _IntroPageState extends State<IntroPage> {
     download.finished = true;
   }
 
+  // ======= Download related properties ============
+
+  /// Total download progress
   double get progress {
     double total = downloads.values.map((d) => d.total).fold(0, (a, b) => a + b);
     double current = downloads.values.map((d) => d.current).fold(0, (a, b) => a + b);
     return current / total;
   }
 
+  /// Download dir, which is null before the future loading it has been resolved
+  /// Once resolved, it can be retrieved asynchronously (useful for doing it
+  /// inside the build() method to check if the files are done downloading)
   Directory? _downloadDir;
-  bool llmInitialized = false;
 
+  /// Asynchronously get the download dir
   Future<Directory> downloadDir() async {
     if (_downloadDir == null) {
       final dir = await getExternalStorageDirectory();
@@ -97,21 +119,26 @@ class _IntroPageState extends State<IntroPage> {
         downloads.values.map((d) => d.finished).fold(true, (a, b) => a && b);
   }
 
-  bool openedGemmaTos = false;
-  bool openedGemmaUsagePolicy = false;
-
   bool get downloadsStarted => downloads.isNotEmpty;
 
+  /// Whether the LLM has been loaded yet
+  bool llmInitialized = false;
+
+  /// List of remote model files to download
   static const List<String> files = ["gemma-3n-E4B-it-int4.task", "sentencepiece.model", "Gecko_1024_quant.tflite", "embeddings.sqlite"];
 
   @override
   Widget build(BuildContext context) {
     Widget nextButton;
 
+    // Our background colour
     Color orange = Color(0xffcc5500);
 
-    if (_downloadDir == null) {
-      downloadDir(); // force init
+    if (_downloadDir == null) { // Download dir loading - show loading spinner
+      // Start background fetching of the download dir - we can't get it
+      // synchronously as the Dart API is a Future
+      downloadDir();
+
       nextButton = Column(
         children: [
           Text("Checking if the LLM is installed..."),
@@ -123,10 +150,10 @@ class _IntroPageState extends State<IntroPage> {
           ),
         ],
       );
-    } else if (downloadsDone) {
-      if (!llmInitialized) {
+    } else if (downloadsDone) { // Download complete - initialise LLM
+      if (!llmInitialized) { // LLM not yet initialised - loading spinner
         WidgetsBinding.instance.addPostFrameCallback((_) async {
-          await ChatPage.waitForLlmInit();
+          await SearchPage.waitForLlmInit();
 
           setState(() {
             llmInitialized = true;
@@ -144,7 +171,7 @@ class _IntroPageState extends State<IntroPage> {
             )
           ],
         );
-      } else {
+      } else { // LLM initialised - allow user to progress!
         nextButton = ElevatedButton(
           onPressed: () {
             Navigator.pushReplacementNamed(context, '/chat');
@@ -166,97 +193,10 @@ class _IntroPageState extends State<IntroPage> {
           ),
         );
       }
-    } else if (!downloadsStarted) {
+    } else if (!downloadsStarted) { // Download not yet started - prompt license
       nextButton = ElevatedButton(
         onPressed: () async {
-          var accepted = await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext context) {
-              return StatefulBuilder(builder: (context, setState) {
-                return AlertDialog(
-                  title: const Text('Accept Gemma3n license'),
-                  content: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: 500),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min  ,
-                        children: [
-                          Text(
-                              "Please read and accept Gemma3n's license and prohibited usage policy. We have modified and fine-tuned Gemma3n for medical question answering."),
-                          SizedBox(height: 30),
-                          Text(
-                              "Gemma is provided under and subject to the Gemma Terms of Use found at"),
-                          SizedBox(height: 15),
-                          InkWell(
-                            child: Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text(
-                                  "ai.google.dev/gemma/terms",
-                                  style: TextStyle(
-                                    color: Colors.blue,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                )
-                            ),
-                            onTap: () {
-                              setState(() {
-                                openedGemmaTos = true;
-                              });
-                              launchUrlString(
-                                  "https://ai.google.dev/gemma/terms");
-                            },
-                          ),
-                          InkWell(
-                            child: Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text(
-                                  "Gemma3n usage policy",
-                                  style: TextStyle(
-                                    color: Colors.blue,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                )
-                            ),
-                            onTap: () {
-                              setState(() {
-                                openedGemmaUsagePolicy = true;
-                              });
-                    
-                              launchUrlString(
-                                  "https://ai.google.dev/gemma/prohibited_use_policy");
-                            },
-                          ),
-                        ]
-                    ),
-                  ),
-                  actions: <Widget>[
-                    TextButton(
-                      style: TextButton.styleFrom(textStyle: Theme
-                          .of(context)
-                          .textTheme
-                          .labelLarge),
-                      onPressed: (openedGemmaUsagePolicy && openedGemmaTos)
-                          ? () => Navigator.of(context).pop(true)
-                          : null,
-                      child: const Text('Accept'),
-                    ),
-                    TextButton(
-                      style: TextButton.styleFrom(textStyle: Theme
-                          .of(context)
-                          .textTheme
-                          .labelLarge),
-                      child: const Text('Deny'),
-                      onPressed: () {
-                        openedGemmaTos = false;
-                        openedGemmaUsagePolicy = false;
-                        Navigator.of(context).pop(false);
-                      },
-                    ),
-                  ],
-                );
-              });
-            });
-
+          var accepted = await promptLicense(context);
           if (accepted ?? false) {
             for (var filename in files) {
               downloadFileFromServer("https://152.67.91.164/", filename);
@@ -288,6 +228,7 @@ class _IntroPageState extends State<IntroPage> {
       ]);
     }
 
+    // Build initial UI
     return Theme(
       data: ThemeData(
         textTheme: TextTheme.of(context).merge(
@@ -383,6 +324,99 @@ class _IntroPageState extends State<IntroPage> {
       ),
     );
   }
+}
+
+Future<bool?> promptLicense(BuildContext context) {
+  bool openedGemmaTos = false;
+  bool openedGemmaUsagePolicy = false;
+
+  return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Accept Gemma3n license'),
+            content: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: 500),
+              child: Column(
+                  mainAxisSize: MainAxisSize.min  ,
+                  children: [
+                    Text(
+                        "Please read and accept Gemma3n's license and prohibited usage policy."),
+                    SizedBox(height: 30),
+                    Text(
+                        "Gemma is provided under and subject to the Gemma Terms of Use found at"),
+                    SizedBox(height: 15),
+                    InkWell(
+                      child: Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text(
+                            "ai.google.dev/gemma/terms",
+                            style: TextStyle(
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                            ),
+                          )
+                      ),
+                      onTap: () {
+                        setState(() {
+                          openedGemmaTos = true;
+                        });
+                        launchUrlString(
+                            "https://ai.google.dev/gemma/terms");
+                      },
+                    ),
+                    InkWell(
+                      child: Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text(
+                            "Gemma3n usage policy",
+                            style: TextStyle(
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                            ),
+                          )
+                      ),
+                      onTap: () {
+                        setState(() {
+                          openedGemmaUsagePolicy = true;
+                        });
+
+                        launchUrlString(
+                            "https://ai.google.dev/gemma/prohibited_use_policy");
+                      },
+                    ),
+                  ]
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                style: TextButton.styleFrom(textStyle: Theme
+                    .of(context)
+                    .textTheme
+                    .labelLarge),
+                onPressed: (openedGemmaUsagePolicy && openedGemmaTos)
+                    ? () => Navigator.of(context).pop(true)
+                    : null,
+                child: const Text('Accept'),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(textStyle: Theme
+                    .of(context)
+                    .textTheme
+                    .labelLarge),
+                child: const Text('Deny'),
+                onPressed: () {
+                  openedGemmaTos = false;
+                  openedGemmaUsagePolicy = false;
+                  Navigator.of(context).pop(false);
+                },
+              ),
+            ],
+          );
+        });
+      });
 }
 
 class DownloadInProgress {
