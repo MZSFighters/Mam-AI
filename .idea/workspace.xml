@@ -9,16 +9,9 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f6c84273-e6b8-440a-80d4-eeada917f45c" name="Changes" comment="some stuff for readme">
-      <change afterPath="$PROJECT_DIR$/finetune/config.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/finetune/data_processing.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/finetune/main_training.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/finetune/model_setup.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/finetune/training.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/rag/chunks_testing.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/rag/text_extraction_json.py" afterDir="false" />
+    <list default="true" id="f6c84273-e6b8-440a-80d4-eeada917f45c" name="Changes" comment="add extra files">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/android/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/android/app/src/main/AndroidManifest.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,7 +21,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=LocalEmulator, isTemplate=false, identifier=path=C:\Users\caelm\.android\avd\Medium_Phone.avd)]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=PhysicalDevice, isTemplate=false, identifier=serial=HA2408AQ)]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
@@ -159,7 +152,7 @@
       <recent name="C:\Users\caelm\StudioProjects\Mam-AI\app\android\app\src\main\assets" />
     </key>
   </component>
-  <component name="RunManager" selected="Android App.android.app">
+  <component name="RunManager" selected="Flutter.Flutter">
     <configuration name="android.app" type="AndroidRunConfigurationType" factoryName="Android App" activateToolWindowBeforeRun="false">
       <module name="android.app" />
       <option name="ANDROID_RUN_CONFIGURATION_SCHEMA_VERSION" value="1" />
@@ -677,7 +670,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754514709816</updated>
     </task>
-    <option name="localTasksCounter" value="19" />
+    <task id="LOCAL-00019" summary="add extra files">
+      <option name="closed" value="true" />
+      <created>1754517758503</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1754517758503</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -698,6 +699,7 @@
     <MESSAGE value="final?" />
     <MESSAGE value="sketch reproduction" />
     <MESSAGE value="some stuff for readme" />
-    <option name="LAST_COMMIT_MESSAGE" value="some stuff for readme" />
+    <MESSAGE value="add extra files" />
+    <option name="LAST_COMMIT_MESSAGE" value="add extra files" />
   </component>
 </project>
