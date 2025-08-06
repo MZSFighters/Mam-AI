@@ -3,8 +3,9 @@
 MAM-AI is a smart search application developed for nurses and midwives in Zanzibar. This repository
 is an MVP for this, as submitted to the [Gemma3n Kaggle challenge](https://www.kaggle.com/competitions/google-gemma-3n-hackathon).
 
-There are two main folders: `rag` and `app`. `rag` is used for document preprocessing and `app`
-contains the actual app.
+There are three main folders: `rag`, `app`, and `finetune`. `rag` is used for document preprocessing. `app`
+contains the actual app. `finetune` is the Gemma3n finetune which we sadly did not manage to deploy
+into the Android app (yet).
 
 ## Install instructions
 
@@ -35,6 +36,8 @@ This is a rough sketch of how you could reproduce what we created in this projec
 **Serving the remote files to the users:**
 - Start an nginx server with a self-signed cert and the files (see below) in `/var/www/html/`
 
+**Finetuning (not included in app):**
+- 
 
 ## Remote resources 
 
