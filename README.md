@@ -38,7 +38,8 @@ This is a rough sketch of how you could reproduce what we created in this projec
 
 **Finetuning (not included in app):**
 
-- [Fine tuning Dataset](https://drive.google.com/drive/folders/1vdheVGdrOTXwekaIrSkve7JF28Tpq1Xf?usp=sharing)
+- [Finetuning Dataset](https://drive.google.com/drive/folders/1vdheVGdrOTXwekaIrSkve7JF28Tpq1Xf?usp=sharing)
+- [Finetuned Model]([fiifidawson/mam-ai-gemma-3n-medical-finetuned](https://huggingface.co/fiifidawson/mam-ai-gemma-3n-medical-finetuned)
  - Set Up a Python 3.10 Virtual Environment:
    - `python3.10 -m venv .venv`
    - Windows: `.venv\Scripts\activate`
