@@ -5,6 +5,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import androidx.lifecycle.lifecycleScope
 import io.flutter.plugin.common.EventChannel
+import kotlinx.coroutines.launch
 
 class MainActivity : FlutterActivity() {
     private val channel = "io.github.mzsfighters.mam_ai/request_generation"
@@ -18,8 +19,10 @@ class MainActivity : FlutterActivity() {
                 call, result ->
             when (call.method) {
                 "ensureInit" -> {
-                    ragStream.ensureLlmInit()
-                    result.success(0)
+                    lifecycleScope.launch {
+                        ragStream.waitForLlmInit()
+                        result.success(0)
+                    }
                 }
                 "generateResponse" -> {
                     ragStream.generateResponse(call.arguments<String>()!!)

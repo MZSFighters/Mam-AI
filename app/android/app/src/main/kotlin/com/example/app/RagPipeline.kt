@@ -3,7 +3,6 @@ package com.example.app
 import android.app.Application
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.channels.Channel
 import com.google.ai.edge.localagents.rag.chains.ChainConfig
 import com.google.ai.edge.localagents.rag.chains.RetrievalAndInferenceChain
 import com.google.ai.edge.localagents.rag.memory.DefaultSemanticTextMemory
@@ -11,10 +10,8 @@ import com.google.ai.edge.localagents.rag.memory.SqliteVectorStore
 import com.google.ai.edge.localagents.rag.models.AsyncProgressListener
 import com.google.ai.edge.localagents.rag.models.Embedder
 import com.google.ai.edge.localagents.rag.models.GeckoEmbeddingModel
-import com.google.ai.edge.localagents.rag.models.GeminiEmbedder
 import com.google.ai.edge.localagents.rag.models.LanguageModelResponse
 import com.google.ai.edge.localagents.rag.models.MediaPipeLlmBackend
-import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
 import com.google.ai.edge.localagents.rag.prompt.PromptBuilder
 import com.google.ai.edge.localagents.rag.retrieval.RetrievalConfig
 import com.google.ai.edge.localagents.rag.retrieval.RetrievalConfig.TaskType
@@ -23,21 +20,25 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
+import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.util.concurrent.Executors
+import io.flutter.plugin.common.EventChannel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.guava.await
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.util.Optional
+import java.util.concurrent.Executors
 import kotlin.jvm.optionals.getOrNull
 
 /** The RAG pipeline for LLM generation. */
 class RagPipeline(application: Application) {
+    private val baseFolder = application.getExternalFilesDir(null).toString() + "/"
     private val mediaPipeLanguageModelOptions: LlmInferenceOptions =
         LlmInferenceOptions.builder().setModelPath(
-            GEMMA_MODEL_PATH
-        ).setPreferredBackend(LlmInference.Backend.GPU).setMaxTokens(1024).build()
+            baseFolder + GEMMA_MODEL
+        ).setPreferredBackend(LlmInference.Backend.GPU).setMaxTokens(4096).build()
     private val mediaPipeLanguageModelSessionOptions: LlmInferenceSession.LlmInferenceSessionOptions =
         LlmInferenceSession.LlmInferenceSessionOptions.builder().setTemperature(1.0f)
             .setTopP(0.95f).setTopK(64).build()
@@ -47,33 +48,29 @@ class RagPipeline(application: Application) {
             mediaPipeLanguageModelSessionOptions
         )
 
-    private val embedder: Embedder<String> = if (COMPUTE_EMBEDDINGS_LOCALLY) {
-        GeckoEmbeddingModel(
-            GECKO_MODEL_PATH,
-            Optional.of(TOKENIZER_MODEL_PATH),
-            USE_GPU_FOR_EMBEDDINGS,
-        )
-    } else {
-        GeminiEmbedder(
-            GEMINI_EMBEDDING_MODEL,
-            GEMINI_API_KEY
-        )
-    }
+    private val embedder: Embedder<String> = GeckoEmbeddingModel(
+        baseFolder + GECKO_MODEL,
+        Optional.of(baseFolder + TOKENIZER_MODEL),
+        USE_GPU_FOR_EMBEDDINGS,
+    )
+
+
+    private val textMemory = DefaultSemanticTextMemory(
+        // Gecko embedding model dimension is 768
+        SqliteVectorStore(768, baseFolder + "embeddings.sqlite"), embedder
+    )
 
     private val config = ChainConfig.create(
         mediaPipeLanguageModel, PromptBuilder(PROMPT_TEMPLATE),
-        DefaultSemanticTextMemory(
-            // Gecko embedding model dimension is 768
-            SqliteVectorStore(768), embedder
-        )
+        textMemory
     )
     private val retrievalAndInferenceChain = RetrievalAndInferenceChain(config)
 
-    private var llmReady = false
+    var llmReady = false
 
     // rendezvous channel for the LLM being ready - allows coroutine to wait for the llm to be ready
     // https://stackoverflow.com/a/55421973
-    private val onLlmReady = Channel<Unit>(0)
+    val onLlmReady = Channel<Unit>(0)
 
     init {
         Futures.addCallback(
@@ -81,14 +78,10 @@ class RagPipeline(application: Application) {
             object : FutureCallback<Boolean> {
                 override fun onSuccess(result: Boolean) {
                     Log.i("mam-ai", "LLM initialized!")
-
-                    // TODO minimise # of chunks
-//                    memorizeChunks(application.applicationContext, "mamai_context.txt")
 //                    Log.i("mam-ai", "Chunks loaded!")
 
                     llmReady = true
                     onLlmReady.trySend(Unit)
-                    // no-op
                 }
 
                 override fun onFailure(t: Throwable) {
@@ -98,6 +91,8 @@ class RagPipeline(application: Application) {
         )
     }
 
+    // Unused at the moment, since we ship a pre-memorised sqlite DB, but this is the code that
+    // could be used to memorise more documents on the fly
     fun memorizeChunks(context: Context, filename: String) {
         // BufferedReader is needed to read the *.txt file
         // Create and Initialize BufferedReader
@@ -142,7 +137,8 @@ class RagPipeline(application: Application) {
     /** Generates the response from the LLM. */
     suspend fun generateResponse(
         prompt: String,
-        callback: AsyncProgressListener<LanguageModelResponse>?,
+        retrievalListener: (docs: List<String>) -> Unit,
+        generationListener: AsyncProgressListener<LanguageModelResponse>?,
     ): String =
         coroutineScope {
             // Wait for llm to be ready via rendezvous channel
@@ -153,25 +149,30 @@ class RagPipeline(application: Application) {
             val retrievalRequest =
                 RetrievalRequest.create(
                     prompt,
-                    RetrievalConfig.create(3, 0.0f, TaskType.QUESTION_ANSWERING)
+                    RetrievalConfig.create(3, 0.0f, TaskType.RETRIEVAL_QUERY)
                 )
-            retrievalAndInferenceChain.invoke(retrievalRequest, callback).await().text
+            val retrievalResults = textMemory.retrieveResults(retrievalRequest).await().getEntities().map { e -> e.data }.toList()
+            retrievalListener(retrievalResults);
+
+            // TODO??? include?
+            retrievalAndInferenceChain.invoke(retrievalRequest, generationListener).await().text
         }
 
     companion object {
-        private const val COMPUTE_EMBEDDINGS_LOCALLY = true
         private const val USE_GPU_FOR_EMBEDDINGS = true
         private val CHUNK_SEPARATORS = listOf("<sep>", "<doc_sep>")
 
-        private const val GEMMA_MODEL_PATH = "/data/local/tmp/llm/gemma-3-1b-it-int4.task"
-        private const val TOKENIZER_MODEL_PATH = "/data/local/tmp/sentencepiece.model"
-        private const val GECKO_MODEL_PATH = "/data/local/tmp/gecko.tflite"
-        private const val GEMINI_EMBEDDING_MODEL = "models/text-embedding-004"
-        private const val GEMINI_API_KEY = "..."
+        private const val GEMMA_MODEL = "gemma-3n-E4B-it-int4.task"
+        private const val TOKENIZER_MODEL = "sentencepiece.model"
+        private const val GECKO_MODEL = "Gecko_1024_quant.tflite"
 
         // The prompt template for the RetrievalAndInferenceChain. It takes two inputs: {0}, which is the retrieved context, and {1}, which is the user's query.
         private const val PROMPT_TEMPLATE: String =
-            "You are a smart search engine designed to support nurses and midwives in neonatal care. Speak in simple, clear English. Be impartial and impersonal - you are creating a summary for the user, not chatting with them. Give accurate, medically grounded information from reliable sources. Keep answers short and easy to understand.\n" +
+            "CONTEXT FOR THE QUERY BELOW: {0}.\n" +
+                    "<separator>\n" +
+                    "You are a smart search engine designed to support nurses and midwives in neonatal care. Speak in simple, clear English suitable for a second-language speaker. Be impartial and impersonal - you are creating a summary for the user, not chatting with them. Give accurate, medically grounded information from reliable sources, orienting toward actionable steps for practical care. Keep answers short (prioritise conciseness and  and easy to understand, making use of bullet points.\n" +
+                    "\n" +
+                    "THE CONTEXT MAY OR MAY NOT BE RELEVANT, ONLY THE 3 MOST SIMILAR DOCUMENTS ARE RETRIEVED. IF NONE ARE RELEVANT, 3 IRRELEVANT DOCUMENTS WILL BE RETRIEVED. IGNORE THEM IN THIS CASE AND SAY THAT NOTHING RELEVANT WAS FOUND!\n" +
                     "\n" +
                     "If a user describes symptoms that could be urgent or dangerous—such as bleeding, severe pain, trouble breathing, fever in a newborn, or anything that sounds serious—tell them to contact a doctor, nurse, or emergency service right away. Do not try to diagnose emergencies.\n" +
                     "\n" +
@@ -183,13 +184,9 @@ class RagPipeline(application: Application) {
                     "\n" +
                     "You can ONLY REPLY ONCE with a FULL summary. The user therefore CANNOT ask clarifying questions. Include ALL info in your first AND ONLY answer. In this way, you act like a more intelligent Google search.\n" +
                     "\n" +
-                    "============================" +
-                    "\n" +
-                    "Here is the context: {0}" +
-                    "\n" +
-                    "=============================\n" +
+                    "<separator>\n" +
                     "Here is the user's question: {1}.\n" +
-                    "============================\n" +
-                    "INCLUDE ALL INFORMATION IN YOUR SUMMARY, SIMILAR TO A SEARCH ENGINE SUMMARY."
+                    "<separator>\n" +
+                    "INCLUDE ALL INFORMATION IN YOUR CONCISE, MINIMAL SUMMARY, SIMILAR TO A SEARCH ENGINE SUMMARY.\n"
     }
 }
