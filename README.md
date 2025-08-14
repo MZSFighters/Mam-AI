@@ -1,3 +1,7 @@
+# NOTE TO ANY KAGGLE JUDGES
+
+This is the **post-competition** branch. Our competition submission is in the `main` branch.
+
 # mam-ai
 
 MAM-AI is a smart search application developed for nurses and midwives in Zanzibar. This repository
@@ -64,3 +68,18 @@ They are as follows:
 - `sentencepiece.model`: tokenizer from [litert-community/Gecko-110m-en])(https://huggingface.co/litert-community/Gecko-110m-en)
 - `gemma-3n-E4B-it-int4.task`: Gemma3n E4B
 - `embeddings.sqlite`: pre-computed document embeddings
+
+## Development instructions
+
+### Using models from local files
+
+You'll need to have adb installed and push the models to the `getExternalStorageDirectory()` of
+the tablet (you can add a `print` statement in the `downloadDir` function of `intro_page.dart` to
+find out exactly what it is).
+
+The filenames are expected to be as are written above in the "Remote resources" section, but aside
+from the embedding model & its tokenizer (we think), there is no reason that the models have to be
+the same. I.e., you could replace Gemma3n with a suitable quantised & converted LLaMa model.
+
+If you want to change the expected names of any of these files, the constants are in
+`RagPipeline.kt`.
