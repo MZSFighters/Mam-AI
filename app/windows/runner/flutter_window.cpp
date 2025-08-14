@@ -39,7 +39,27 @@ bool FlutterWindow::OnCreate() {
   request_channel.SetMethodCallHandler(
           [&](const flutter::MethodCall<>& call,
              std::unique_ptr<flutter::MethodResult<>> result) {
-              event_sink_->Success(flutter::EncodableValue("Lorem ipsum dolor sit amet."));
+              flutter::EncodableValue lorem = flutter::EncodableValue("Lorem ipsum dolor sit amet.");
+              std::map<flutter::EncodableValue, flutter::EncodableValue> reply = {
+                {flutter::EncodableValue("response"), lorem},
+
+                {
+                  flutter::EncodableValue("results"),
+                  std::vector<flutter::EncodableValue>{
+                    lorem,
+                    flutter::EncodableValue(
+                      "<meta>Document name with page; Page: 1</meta>"
+                      "Lorem ipsum dolor sit amet"
+                    ),
+                    flutter::EncodableValue(
+                      "<meta>Document name without page</meta>"
+                      "Lorem ipsum dolor sit amet"
+                    ),
+                  },
+                }
+              };
+
+              event_sink_->Success(flutter::EncodableValue(reply));
               result->Success(0);
           });
 

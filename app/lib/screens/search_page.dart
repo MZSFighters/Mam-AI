@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:markdown_widget/markdown_widget.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 /// This is the search page. The user interacts with the model by typing in
 /// the search bar or clicking one of the suggestion chips.
@@ -23,12 +25,22 @@ class SearchPage extends StatefulWidget {
   }
 }
 
+class SearchPageArguments {
+  const SearchPageArguments({required this.documentsDirectory});
+  final Directory documentsDirectory;
+}
+
 class _SearchPageState extends State<SearchPage> {
   /// Response from the LLM (summary)
   String? _latestMessage;
 
+  /// This is passed via navigator arguments, so it is null until first build
+  /// and then never again. This isn't `late` so we can avoid reinitialising it
+  /// over and over again
+  Directory? documentsDirectory;
+
   /// Documents retrieved from RAG
-  List<String> _retrievedDocuments = List.empty();
+  List<RetrievedDocument> _retrievedDocuments = List.empty();
 
   static const platform = MethodChannel("io.github.mzsfighters.mam_ai/request_generation");
   static const latestMessageStream = EventChannel("io.github.mzsfighters.mam_ai/latest_message");
@@ -60,9 +72,13 @@ class _SearchPageState extends State<SearchPage> {
     setState(() {
       if (value.containsKey("response")) {
         _latestMessage = value["response"];
-      } else {
+      }
+
+      if (value.containsKey("results")) {
         List<Object?> docs = value["results"];
-        _retrievedDocuments = docs.map<String>((a) => a as String).toList();
+        _retrievedDocuments = docs
+            .map<RetrievedDocument>((raw) => RetrievedDocument.parse(raw as String, documentsDirectory!))
+            .toList();
       }
     });
   }
@@ -91,6 +107,11 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (documentsDirectory == null) {
+      SearchPageArguments args = ModalRoute.of(context)!.settings.arguments as SearchPageArguments;
+      documentsDirectory = args.documentsDirectory;
+    }
+
     // Some suggested prompt
     var examples = [
       "Baby continuous crying",
@@ -285,12 +306,58 @@ class SearchSuggestionChip extends StatelessWidget {
   }
 }
 
+class RetrievedDocument {
+  const RetrievedDocument({required this.documentName, required this.page, required this.text, this.url});
+
+  final String documentName;
+  final int? page;
+  final String text;
+  final String? url;
+
+  static RetrievedDocument parse(String raw, Directory documentsDir) {
+    int startMeta = raw.indexOf("<meta>");
+    int endMeta = raw.indexOf("</meta>");
+
+    if (startMeta == -1 || endMeta == -1) {
+      return RetrievedDocument(
+        documentName: "Information from guidelines",
+        text: raw,
+        page: null
+      );
+    }
+
+    // We expect meta to be in this format:
+    // <meta>Document title: WHO Guidelines 2017; Page: 10</meta>
+    // This is easy to parse and also easy for an LLM to understand (since this
+    // also gets passed to the LLM)
+
+    String meta = raw.substring(startMeta + "<meta>".length, endMeta);
+    List<String> split = meta.split(";");
+
+    String name = split[0].trim().replaceFirst("Document title: ", "");
+
+    int? page;
+    String pageFrag = "";
+    if (split.length > 1) {
+      page = int.parse(split[1].trim().replaceFirst("Page: ", ""));
+      pageFrag = "#page=$page";
+    }
+
+    return RetrievedDocument(
+      documentName: name,
+      page: page,
+      text: raw.substring(endMeta + "</meta>".length),
+      url: "file://${documentsDir.path}/$name$pageFrag",
+    );
+  }
+}
+
 /// The main widget for the search summary
 class SearchOutput extends StatelessWidget {
   const SearchOutput({super.key, required this.summary, required this.retrievedDocuments});
 
   final String? summary;
-  final List<String> retrievedDocuments;
+  final List<RetrievedDocument> retrievedDocuments;
 
   @override
   Widget build(BuildContext context) {
@@ -300,20 +367,32 @@ class SearchOutput extends StatelessWidget {
 
     final retrievedDocs = retrievedDocuments.map((doc) {
       return Card(
+        child: InkWell(
+          onTap: doc.url != null
+              ? () => launchUrlString(doc.url!)
+              : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ListTile(
                 leading: const Icon(Icons.book),
-                title: const Text('Information from guidelines'),
+                title: Text(
+                    doc.page != null
+                        ? "${doc.documentName} - page ${doc.page}"
+                        : doc.documentName
+                ),
+                trailing: doc.url != null
+                    ? const Icon(Icons.open_in_new)
+                    : null,
                 contentPadding: const EdgeInsetsDirectional.only(start: 16.0, end: 24.0),
               ),
               Padding(
                 padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
-                child: Text(doc, style: TextStyle(fontSize: 16)),
+                child: Text(doc.text, style: TextStyle(fontSize: 16)),
               )
             ],
-          )
+          ),
+        )
       );
     });
 

@@ -92,7 +92,7 @@ class _IntroPageState extends State<IntroPage> {
   /// Asynchronously get the download dir
   Future<Directory> downloadDir() async {
     if (_downloadDir == null) {
-      final dir = await getExternalStorageDirectory();
+      final dir = Platform.isAndroid ? await getExternalStorageDirectory() : Directory("mock_ext_storage_dir/");
       setState(() {
         _downloadDir = dir;
       });
@@ -106,9 +106,9 @@ class _IntroPageState extends State<IntroPage> {
       bool done = files.map((file) => io.File("${_downloadDir!.path}/$file").existsSync()).reduce((a, b) => a && b);
 
       if (done) {
+        // TODO do an actual hash here
         // Little bit of a hack over doing a checksum but is is ok for an mvp
         int fileSize = files.map((file) => io.File("${_downloadDir!.path}/$file").lengthSync()).reduce((a, b) => a + b);
-        print(fileSize);
         if (fileSize == 4564057313) {
           return true;
         }
@@ -137,7 +137,9 @@ class _IntroPageState extends State<IntroPage> {
     if (_downloadDir == null) { // Download dir loading - show loading spinner
       // Start background fetching of the download dir - we can't get it
       // synchronously as the Dart API is a Future
-      downloadDir();
+      // We have to put this in a post-frame callback because otherwise the
+      // setState could be lost and widget won't rebuild
+      WidgetsBinding.instance.addPostFrameCallback((_) => downloadDir());
 
       nextButton = Column(
         children: [
@@ -150,8 +152,12 @@ class _IntroPageState extends State<IntroPage> {
           ),
         ],
       );
-    } else if (downloadsDone) { // Download complete - initialise LLM
-      if (!llmInitialized) { // LLM not yet initialised - loading spinner
+    } else if (downloadsDone || !Platform.isAndroid) { // Download complete - initialise LLM
+      // We have some special cases above and below for non-Android - this is
+      // because we simply mock the LLM interface on desktop for UI testing
+
+      // LLM not yet initialised - loading spinner
+      if (!llmInitialized && Platform.isAndroid) {
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           await SearchPage.waitForLlmInit();
 
@@ -174,7 +180,15 @@ class _IntroPageState extends State<IntroPage> {
       } else { // LLM initialised - allow user to progress!
         nextButton = ElevatedButton(
           onPressed: () {
-            Navigator.pushReplacementNamed(context, '/chat');
+            Navigator.pushReplacementNamed(
+                context,
+                '/chat',
+                arguments: SearchPageArguments(
+                    documentsDirectory: Directory(
+                        "${_downloadDir!.path}/documents/"
+                    )
+                )
+            );
           },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.all(20),
@@ -363,8 +377,7 @@ Future<bool?> promptLicense(BuildContext context) {
                         setState(() {
                           openedGemmaTos = true;
                         });
-                        launchUrlString(
-                            "https://ai.google.dev/gemma/terms");
+                        launchUrlString("https://ai.google.dev/gemma/terms");
                       },
                     ),
                     InkWell(
@@ -384,7 +397,8 @@ Future<bool?> promptLicense(BuildContext context) {
                         });
 
                         launchUrlString(
-                            "https://ai.google.dev/gemma/prohibited_use_policy");
+                            "https://ai.google.dev/gemma/prohibited_use_policy"
+                        );
                       },
                     ),
                   ]
