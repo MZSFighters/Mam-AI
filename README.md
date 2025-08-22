@@ -83,3 +83,7 @@ the same. I.e., you could replace Gemma3n with a suitable quantised & converted 
 
 If you want to change the expected names of any of these files, the constants are in
 `RagPipeline.kt`.
+
+### Pushing context
+
+`adb push db /storage/emulated/0/Android/data/com.example.app/files`

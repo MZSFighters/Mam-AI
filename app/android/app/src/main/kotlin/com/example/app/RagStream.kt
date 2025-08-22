@@ -8,6 +8,7 @@ import com.google.ai.edge.localagents.rag.models.LanguageModelResponse
 import io.flutter.plugin.common.EventChannel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executor
@@ -55,12 +56,10 @@ class RagStream(application: Application, val lifecycleScope: LifecycleCoroutine
     // Generate a response to the prompt, sending updates to Flutter as it is being generated
     fun generateResponse(prompt: String) {
         synchronized(this) {
-            // We are already generating for this prompt
-            if (currentJob != null && currentPrompt == prompt) {
+            // We are already generating
+            if (currentJob != null) {
                 return
             }
-
-            currentJob?.cancel()
 
             currentPrompt = prompt
             currentJob = lifecycleScope.launch {
@@ -85,11 +84,11 @@ class RagStream(application: Application, val lifecycleScope: LifecycleCoroutine
                         }
                     }
 
-                    fun onRetrieve(documents: List<String>) {
+                    fun onRetrieve(documents: List<RagPipeline.RetrievedChunk>) {
                         Handler(Looper.getMainLooper()).post {
                             latestGeneration?.success(
                                 hashMapOf(
-                                    "results" to documents
+                                    "results" to documents.map(RagPipeline.RetrievedChunk::toHashMap)
                                 )
                             )
                         }

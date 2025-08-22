@@ -6,7 +6,6 @@ import android.util.Log
 import com.google.ai.edge.localagents.rag.chains.ChainConfig
 import com.google.ai.edge.localagents.rag.chains.RetrievalAndInferenceChain
 import com.google.ai.edge.localagents.rag.memory.DefaultSemanticTextMemory
-import com.google.ai.edge.localagents.rag.memory.SqliteVectorStore
 import com.google.ai.edge.localagents.rag.models.AsyncProgressListener
 import com.google.ai.edge.localagents.rag.models.Embedder
 import com.google.ai.edge.localagents.rag.models.GeckoEmbeddingModel
@@ -15,6 +14,7 @@ import com.google.ai.edge.localagents.rag.models.MediaPipeLlmBackend
 import com.google.ai.edge.localagents.rag.prompt.PromptBuilder
 import com.google.ai.edge.localagents.rag.retrieval.RetrievalConfig
 import com.google.ai.edge.localagents.rag.retrieval.RetrievalConfig.TaskType
+import com.google.ai.edge.localagents.rag.retrieval.RetrievalEntity
 import com.google.ai.edge.localagents.rag.retrieval.RetrievalRequest
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.FutureCallback
@@ -22,11 +22,11 @@ import com.google.common.util.concurrent.Futures
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
-import io.flutter.plugin.common.EventChannel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.guava.await
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.util.Optional
 import java.util.concurrent.Executors
@@ -57,7 +57,7 @@ class RagPipeline(application: Application) {
 
     private val textMemory = DefaultSemanticTextMemory(
         // Gecko embedding model dimension is 768
-        SqliteVectorStore(768, baseFolder + "embeddings.sqlite"), embedder
+        ObjectBoxStore(application.applicationContext, File("$baseFolder/db/")), embedder
     )
 
     private val config = ChainConfig.create(
@@ -134,14 +134,15 @@ class RagPipeline(application: Application) {
 
     /** Stores input texts in the semantic text memory. */
     private fun memorize(facts: List<String>) {
-        val future = config.semanticMemory.getOrNull()?.recordBatchedMemoryItems(ImmutableList.copyOf(facts))
+        val future =
+            config.semanticMemory.getOrNull()?.recordBatchedMemoryItems(ImmutableList.copyOf(facts))
         future?.get()
     }
 
     /** Generates the response from the LLM. */
     suspend fun generateResponse(
         prompt: String,
-        retrievalListener: (docs: List<String>) -> Unit,
+        retrievalListener: (docs: List<RetrievedChunk>) -> Unit,
         generationListener: AsyncProgressListener<LanguageModelResponse>?,
     ): String =
         coroutineScope {
@@ -158,12 +159,28 @@ class RagPipeline(application: Application) {
                     prompt,
                     RetrievalConfig.create(3, 0.0f, TaskType.RETRIEVAL_QUERY)
                 )
-            val retrievalResults = textMemory.retrieveResults(retrievalRequest).await().getEntities().map { e -> e.data }.toList()
-            retrievalListener(retrievalResults);
+
+            val all = textMemory.retrieveResults(retrievalRequest).await().entities
+            val results = all.map { e -> RetrievedChunk(e) }.toList()
+            retrievalListener(results)
 
             // Get the model output
             retrievalAndInferenceChain.invoke(retrievalRequest, generationListener).await().text
         }
+
+    class RetrievedChunk(val text: String, val page: Int, val title: String) {
+        constructor(e: RetrievalEntity<String>) : this(
+            e.data,
+            e.metadata.get("page") as Int,
+            e.metadata.get("title") as String
+        )
+
+        fun toHashMap(): HashMap<String, Object> = hashMapOf(
+            "text" to (text as Object),
+            "page" to (page as Object),
+            "title" to (title as Object)
+        )
+    }
 
     companion object {
         private const val USE_GPU_FOR_EMBEDDINGS = true

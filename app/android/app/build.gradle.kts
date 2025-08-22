@@ -3,6 +3,8 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+
+    id("kotlin-kapt")
 }
 
 android {
@@ -23,7 +25,7 @@ android {
         applicationId = "com.example.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 24
+        minSdk = 29
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -49,6 +51,11 @@ dependencies {
     implementation("com.google.ai.edge.localagents:localagents-rag:0.2.0")
     implementation("com.google.mediapipe:tasks-genai:0.10.25")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.2")
+    implementation("io.objectbox:objectbox-android:4.3.0")
+    kapt("io.objectbox:objectbox-processor:4.0.2")
+    compileOnly("com.google.auto.value:auto-value-annotations:1.10.4")
 }
 
 tasks.register("prepareKotlinBuildScriptModel") {}
+
+apply(plugin = "io.objectbox")

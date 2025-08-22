@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:app/screens/pdf_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:markdown_widget/markdown_widget.dart';
-import 'package:url_launcher/url_launcher_string.dart';
 
 /// This is the search page. The user interacts with the model by typing in
 /// the search bar or clicking one of the suggestion chips.
@@ -77,7 +77,7 @@ class _SearchPageState extends State<SearchPage> {
       if (value.containsKey("results")) {
         List<Object?> docs = value["results"];
         _retrievedDocuments = docs
-            .map<RetrievedDocument>((raw) => RetrievedDocument.parse(raw as String, documentsDirectory!))
+            .map<RetrievedDocument>((raw) => RetrievedDocument.fromMap(raw as Map<Object?, Object?>, documentsDirectory!))
             .toList();
       }
     });
@@ -307,47 +307,23 @@ class SearchSuggestionChip extends StatelessWidget {
 }
 
 class RetrievedDocument {
-  const RetrievedDocument({required this.documentName, required this.page, required this.text, this.url});
+  const RetrievedDocument({required this.documentName, required this.page, required this.text, required this.filePath});
 
   final String documentName;
-  final int? page;
+  final int page;
   final String text;
-  final String? url;
+  final String filePath;
 
-  static RetrievedDocument parse(String raw, Directory documentsDir) {
-    int startMeta = raw.indexOf("<meta>");
-    int endMeta = raw.indexOf("</meta>");
+  static RetrievedDocument fromMap(Map<Object?, Object?> properties, Directory documentsDir) {
+    final name = properties["title"] as String;
+    final page = properties["page"] as int;
 
-    if (startMeta == -1 || endMeta == -1) {
-      return RetrievedDocument(
-        documentName: "Information from guidelines",
-        text: raw,
-        page: null
-      );
-    }
-
-    // We expect meta to be in this format:
-    // <meta>Document title: WHO Guidelines 2017; Page: 10</meta>
-    // This is easy to parse and also easy for an LLM to understand (since this
-    // also gets passed to the LLM)
-
-    String meta = raw.substring(startMeta + "<meta>".length, endMeta);
-    List<String> split = meta.split(";");
-
-    String name = split[0].trim().replaceFirst("Document title: ", "");
-
-    int? page;
-    String pageFrag = "";
-    if (split.length > 1) {
-      page = int.parse(split[1].trim().replaceFirst("Page: ", ""));
-      pageFrag = "#page=$page";
-    }
-
+    // TODO https://stackoverflow.com/questions/38200282/android-os-fileuriexposedexception-file-storage-emulated-0-test-txt-exposed
     return RetrievedDocument(
       documentName: name,
       page: page,
-      text: raw.substring(endMeta + "</meta>".length),
-      url: "file://${documentsDir.path}/$name$pageFrag",
+      text: properties["text"] as String,
+      filePath: "${documentsDir.path}$name.pdf",
     );
   }
 }
@@ -368,27 +344,36 @@ class SearchOutput extends StatelessWidget {
     final retrievedDocs = retrievedDocuments.map((doc) {
       return Card(
         child: InkWell(
-          onTap: doc.url != null
-              ? () => launchUrlString(doc.url!)
-              : null,
+          onTap: () {
+            Navigator.pushNamed(
+                context,
+                '/pdf',
+                arguments: PdfViewArguments(
+                  path: doc.filePath,
+                  title: doc.documentName,
+                  page: doc.page,
+                )
+            );
+         },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ListTile(
                 leading: const Icon(Icons.book),
-                title: Text(
-                    doc.page != null
-                        ? "${doc.documentName} - page ${doc.page}"
-                        : doc.documentName
-                ),
-                trailing: doc.url != null
-                    ? const Icon(Icons.open_in_new)
-                    : null,
+                title: Text("${doc.documentName} - page ${doc.page}"),
+                trailing: const Icon(Icons.open_in_new),
                 contentPadding: const EdgeInsetsDirectional.only(start: 16.0, end: 24.0),
               ),
               Padding(
                 padding: EdgeInsetsDirectional.only(start: 16.0, end: 24.0, bottom: 16.0),
-                child: Text(doc.text, style: TextStyle(fontSize: 16)),
+                child: MarkdownBlock(
+                    data: doc.text,
+                    config: MarkdownConfig(
+                        configs: [
+                          PConfig(textStyle: TextStyle(fontSize: 16))
+                        ]
+                    ),
+                ),
               )
             ],
           ),
