@@ -1,0 +1,8 @@
+rag/db/lock.mdb filter=lfs diff=lfs merge=lfs -text
+rag/db/lock.zip filter=lfs diff=lfs merge=lfs -text
+rag/db/data.mdb filter=lfs diff=lfs merge=lfs -text
+rag/Gecko_1024_quant.tflite filter=lfs diff=lfs merge=lfs -text
+db/lock.zip filter=lfs diff=lfs merge=lfs -text
+*.mdb filter=lfs diff=lfs merge=lfs -text
+*.zip filter=lfs diff=lfs merge=lfs -text
+*.tflite filter=lfs diff=lfs merge=lfs -text

@@ -1,535 +1,474 @@
-import os
-from typing import List, Optional, Any, Dict
-from pathlib import Path
-from dataclasses import dataclass
-from abc import ABC, abstractmethod
+import PyPDF2
+from mmore.process.processors.pdf_processor import PDFProcessor
+from mmore.process.processors.base import ProcessorConfig
+from mmore.type import MultimodalSample
+import json
 from langchain_core.documents import Document
-from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
 from langchain_community.document_loaders import TextLoader
 from langchain_huggingface import HuggingFaceEmbeddings
-from langgraph.graph import START, StateGraph
-from typing_extensions import TypedDict
 from rich import print
-from rich.console import Console
-from rich.table import Table
 import re
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import numpy as np
 import tensorflow as tf
 import sentencepiece as spm
 from langchain_core.embeddings import Embeddings
+from unstructured.partition.md import partition_md
+from objectbox import Id, String, Float32Vector, VectorDistanceType, HnswIndex, Entity, Store, Int32
+import os
+from typing import List
 
 
-console = Console()
-
-@dataclass
-class RAGConfig:
-    """Configuration class for RAG pipeline parameters"""
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
-    device: str = "cuda"
-    top_k: int = 3
-    gecko_model_path: str = "Gecko_1024_quant.tflite"
-    tokenizer_path: str = "sentencepiece.model"
+@Entity()
+class Chunk:
+    id = Id()
+    text = String()
+    title = String()
+    page = Int32()
+    embeddings = Float32Vector(index=HnswIndex(dimensions=768, distance_type=VectorDistanceType.COSINE))
 
 
 class GeckoEmbeddings(Embeddings):
     """Custom embeddings class for local Gecko TensorFlow Lite model"""
-    
+
     def __init__(self, model_path: str, tokenizer_path: str):
         self.model_path = model_path
         self.tokenizer_path = tokenizer_path
         self.interpreter = None
         self.tokenizer = None
         self._load_model()
-        
+
     def _load_model(self):
         """Load the TensorFlow Lite model and SentencePiece tokenizer"""
-        console.print(f"Loading Gecko TFLite model: {self.model_path}")
-        console.print(f"Loading SentencePiece tokenizer: {self.tokenizer_path}")
-        
+        print(f"Loading Gecko TFLite model: {self.model_path}")
+        print(f"Loading SentencePiece tokenizer: {self.tokenizer_path}")
+
         try:
+            # Load TensorFlow Lite model
             self.interpreter = tf.lite.Interpreter(model_path=self.model_path, num_threads=24)
             self.interpreter.allocate_tensors()
-            
+
+            # Get input and output details
             self.input_details = self.interpreter.get_input_details()
             self.output_details = self.interpreter.get_output_details()
-            
-            console.print(f"Model input shape: {self.input_details[0]['shape']}")
-            console.print(f"Model output shape: {self.output_details[0]['shape']}")
-            
+
+            print(f"Model input shape: {self.input_details[0]['shape']}")
+            print(f"Model output shape: {self.output_details[0]['shape']}")
+
             # Load SentencePiece tokenizer
             self.tokenizer = spm.SentencePieceProcessor()
             self.tokenizer.load(self.tokenizer_path)
-            
-            console.print("Gecko model and tokenizer loaded successfully")
-            
+
+            print("Gecko model and tokenizer loaded successfully")
+
         except Exception as e:
-            console.print(f"Error loading Gecko model: {e}")
+            print(f"Error loading Gecko model: {e}")
             raise
-    
+
     def _tokenize_text(self, text: str) -> np.ndarray:
         """Tokenize text using SentencePiece tokenizer"""
+        # Get the expected input length from model
         max_length = self.input_details[0]['shape'][1]
-        
-        # tokenizing text
+
+        # Tokenize text
         token_ids = self.tokenizer.encode_as_ids(text)
-        
-        # pad or truncate to expected length
+
+        # Pad or truncate to expected length
         if len(token_ids) > max_length:
             token_ids = token_ids[:max_length]
         else:
             token_ids = token_ids + [0] * (max_length - len(token_ids))
-        
+
         return np.array([token_ids], dtype=np.int32)
-    
-    
+
     def _count_tokens(self, text: str) -> int:
         """Count tokens for a given text"""
         token_ids = self.tokenizer.encode_as_ids(text)
         return len(token_ids)
-    
+
     def _get_embedding(self, text: str) -> List[float]:
         """Get embedding for a single text"""
         try:
-            
-            #----------------------------------------------------------------------
+
+            # ----------------------------------------------------------------------
             # Count tokens and characters
             char_count = len(text)
             token_count = self._count_tokens(text)
-            console.print(f"Chars: {char_count:4d} | Tokens: {token_count:4d}")
-            #----------------------------------------------------------------------
+
+            # Print side by side
+            print(f"Chars: {char_count:4d} | Tokens: {token_count:4d}")
+            # ----------------------------------------------------------------------
+
+            # Tokenize input
             input_tokens = self._tokenize_text(text)
-            
+
+            # Set input tensor
             self.interpreter.set_tensor(self.input_details[0]['index'], input_tokens)
-            
+
+            # Run inference
             self.interpreter.invoke()
-            
+
+            # Get output
             embedding = self.interpreter.get_tensor(self.output_details[0]['index'])
 
+            # Return as list (flatten if needed)
             return embedding.flatten().tolist()
-            
+
         except Exception as e:
-            console.print(f"Error getting embedding: {e}")
+            print(f"Error getting embedding: {e}")
+            # Return zero vector as fallback
             output_shape = self.output_details[0]['shape']
-            embedding_dim = np.prod(output_shape[1:])
+            embedding_dim = np.prod(output_shape[1:])  # Calculate total embedding dimension
             return [0.0] * embedding_dim
-    
+
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embed a list of documents"""
-        console.print(f"Embedding {len(texts)} documents...")
+        print(f"Embedding {len(texts)} documents...")
         embeddings = []
-        
+
         for i, text in enumerate(texts):
             if i % 10 == 0:  # Progress indicator
-                console.print(f"Embedding document {i+1}/{len(texts)}")
-            
+                print(f"Embedding document {i + 1}/{len(texts)}")
+
             embedding = self._get_embedding(text)
             embeddings.append(embedding)
-        
+
         return embeddings
-    
+
     def embed_query(self, text: str) -> List[float]:
         """Embed a single query"""
         return self._get_embedding(text)
 
 
-class LLMInterface(ABC):
-    """Abstract base class for LLM models to ensure model agnosticity"""
-    
-    @abstractmethod
-    def generate(self, prompt: str, context: List[Document]) -> str:
-        """Generate response given prompt and context"""
-        pass
+def create_vector_store(chunks: List[Document], title_page_list):
+    """Add chunks to vector store"""
+    print(f"Adding {len(chunks)} chunks to vector store...")
+
+    objectbox_store = Store(directory="db")
+    box = objectbox_store.box(Chunk)
+
+    embeddings = GeckoEmbeddings(model_path="Gecko_1024_quant.tflite", tokenizer_path="sentencepiece.model")
+
+    for meta, chunk in zip(title_page_list, chunks):
+        box.put(Chunk(text=chunk.page_content, embeddings=embeddings._get_embedding(chunk.page_content), title=meta[0],
+                      page=int(meta[1])))
 
 
-class HuggingFaceLLM(LLMInterface):
-    """HuggingFace LLM implementation with actual model loading"""
-    
-    def __init__(self, model_name: str = "google/gemma-3n-E4B-it", device: str = "cuda"):
-        self.model_name = model_name 
-        self.device = device
-        self.tokenizer = None
-        self.model = None
-        self._load_model()
-        
-    def _load_model(self):
-        """Load the HuggingFace model and tokenizer"""
-        console.print(f"Loading model: {self.model_name}")
-        
-        try:
-            # Load tokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            
-            # Add padding token if it does not exist
-            if self.tokenizer.pad_token is None:
-                self.tokenizer.pad_token = self.tokenizer.eos_token
-                
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                device_map="auto" if self.device == "cuda" else None,
-                trust_remote_code=True
-            )
-            
-            if self.device == "cpu":
-                self.model = self.model.to(self.device)
-                
-            console.print(f"Model loaded successfully on {self.device}")
-            
-        except Exception as e:
-            console.print(f"Error loading model: {e}")
-            
-        
-    def _create_prompt(self, question: str, context: List[Document]) -> str:
-        """Create a well-formatted prompt for the model"""
-        context_text = "\n\n".join([doc.page_content for doc in context])
-        
-        prompt = f"""Based on the following context, please answer the question accurately and concisely.
+# Split and Save the pages of each pdf in the output folder
+def split_and_save_pages(pdf_path, output_folder=None):
+    """
+    Split the PDF into its individual page files and save them in the output directory.
 
-        Context:
-        {context_text}
+    Args:
+        pdf_path (str): Path to the PDF file
+        output_folder (str): Folder to save individual pages (optional)
+    """
+    try:
+        with open(pdf_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            num_pages = len(pdf_reader.pages)
+            pages = list(range(num_pages))
 
-        Question: {question}
+            # If output folder is specified, save individual pages into the output folder
+            if output_folder:
+                os.makedirs(output_folder, exist_ok=True)
+                base_name = os.path.splitext(os.path.basename(pdf_path))[0]
 
-        Answer:"""
-        
-        return prompt
-        
-    def generate(self, prompt: str, context: List[Document]) -> str:
-        """Generate response using the loaded HuggingFace model"""
-        if self.model is None or self.tokenizer is None:
-            return "Error: Model not loaded properly"
-            
-        # Create the full prompt
-        full_prompt = self._create_prompt(prompt, context)
-        
-        try:
-            # Tokenize input
-            inputs = self.tokenizer(
-                full_prompt,
-                return_tensors="pt",
-                truncation=True,
-                max_length=2048,
-                padding=True
-            )
-            
-            inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
-            
-            # Generate response
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=1024,
-                    temperature=0.7,
-                    do_sample=True,
-                    pad_token_id=self.tokenizer.eos_token_id,
-                    repetition_penalty=1.1
-                )
-            
-            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
-            answer = response[len(full_prompt):].strip()
-            return answer if answer else "I couldn't generate a proper response based on the given context."
-            
-        except Exception as e:
-            console.print(f"Error during generation: {e}")
-            return f"Error generating response: {str(e)}"
+                for i, page in enumerate(pdf_reader.pages):
+                    pdf_writer = PyPDF2.PdfWriter()
+                    pdf_writer.add_page(page)
+
+                    output_path = os.path.join(output_folder, f"{base_name}_page_{i + 1}.pdf")
+                    with open(output_path, 'wb') as output_file:
+                        pdf_writer.write(output_file)
+
+                print(f"Saved {num_pages} individual page files to {output_folder}")
+
+    except Exception as e:
+        print(f"Error processing {pdf_path}: {e}")
+        return []
 
 
+def process_text_file(input_file_path, output_file_path=None):
+    """
+    Process a text file by applying regex transformations and removing <attachment> tags.
 
-class FixedSizeTextSplitter:
-    """Custom text splitter that creates exactly sized chunks with overlap"""
-    
-    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 200):
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
-        
-    def split_text(self, text: str) -> List[str]:
-        """Split text into exactly sized chunks with overlap"""
-        if len(text) <= self.chunk_size:
-            return [text]
-        
-        chunks = []
-        start = 0
-        
-        while start < len(text):
-            end = start + self.chunk_size
-   
-            if end < len(text):
-                search_start = max(start, end - 100)
-                sentence_endings = ['.', '!', '?', '\n\n']
-                
-                best_break = end
-                for ending in sentence_endings:
-                    last_pos = text.rfind(ending, search_start, end)
-                    if last_pos != -1 and last_pos > search_start:
-                        best_break = last_pos + 1
-                        break
-                
-                chunk = text[start:best_break]
+    Args:
+        input_file_path (str): Path to the input text file
+        output_file_path (str, optional): Path for the output file. If None, overwrites input file.
+
+    Returns:
+        str: The processed text content
+    """
+    # Read the input file
+    with open(input_file_path, 'r', encoding='utf-8') as file:
+        txt = file.read()
+
+    # Apply regex transformations
+    # 1. Replace multiple newlines (with optional spaces) with double newlines
+    txt = re.sub(r"\s?\n(\s?\n)+", "\n\n", txt)
+
+    # 2. Replace multiple spaces with single space
+    txt = re.sub(r"\s\s(\s+)", " ", txt)
+
+    # 3. Replace multiple dashes after pipe with single dash
+    txt = re.sub(r"\|--+", "|-", txt)
+
+    # 4. Remove all instances of <attachment>
+    txt = re.sub(r"<attachment>", "", txt)
+
+    txt = re.sub(r"<br>", " ", txt)
+
+    txt = re.sub(r"<br/>", " ", txt)
+
+    # Write to output file
+    if output_file_path is None:
+        output_file_path = input_file_path
+
+    with open(output_file_path, 'w', encoding='utf-8') as file:
+        file.write(txt)
+
+    print(f"File processed successfully. Output saved to: {output_file_path}")
+    return txt
+
+
+def add_meta_tags(input_file, output_file):
+    """
+    Processes a JSONL file to extract PDF text and add formatted meta tags.
+
+    Args:
+        input_file (str): Path to input JSONL file containing PDF data
+        output_file (str): Path to output text file with combined content
+    """
+    combined_text = []
+
+    with open(input_file, 'r', encoding='utf-8') as file:
+        for line in file:
+            data = json.loads(line)
+
+            # Skip if text is empty or contains only whitespace
+            text_content = data.get('text', '').strip()
+            if not text_content:
+                continue
+
+            # Get file path and format metadata
+            file_path = data['metadata']['file_path']
+            filename = os.path.basename(file_path).replace('.pdf', '')
+
+            # Extract document name and page number
+            parts = filename.split('_page_')
+            if len(parts) == 2:
+                doc_name = parts[0]
+                page_num = parts[1]
+                meta = f"<meta>{doc_name}; Page: {page_num}</meta>"
             else:
-                chunk = text[start:]
-            
-            chunks.append(chunk)
-            
-            # Move start position considering overlap
-            if end >= len(text):
-                break
-                
-            start = end - self.chunk_overlap
-            
-        return chunks
-    
-    def split_documents(self, documents: List[Document]) -> List[Document]:
-        """Split documents into fixed-size chunks"""
-        chunks = []
-        
-        for doc in documents:
-            text_chunks = self.split_text(doc.page_content)
-            
-            for i, chunk in enumerate(text_chunks):
-                new_doc = Document(
-                    page_content=chunk,
-                    metadata={
-                        **doc.metadata,
-                        'chunk_index': i,
-                        'chunk_size': len(chunk)
-                    }
-                )
-                chunks.append(new_doc)
-                
-        return chunks
+                meta = f"<meta>{filename}</meta>"
+
+            # Combine metadata and text
+            combined_text.append(meta + data['text'])
+
+    # Write to output file
+    with open(output_file, 'w', encoding='utf-8') as output:
+        output.write('\n\n'.join(combined_text))
+
+    print(f"Processed {len(combined_text)} files -> {output_file}")
 
 
-# State definition for LangGraph
-class State(TypedDict):
-    question: str
-    context: List[Document]
-    answer: str
+def is_table(text: str) -> bool:
+    """Check if text contains a markdown table by counting pipes in lines."""
+    lines = text.strip().split('\n')
+
+    for line in lines:
+        pipe_count = line.count('|')
+        if pipe_count >= 2:
+            return True
+
+    return False
 
 
-class RAGPipeline:
-    """Main RAG Pipeline class with fixed-size chunking"""
-    
-    def __init__(self, config: RAGConfig, llm: Optional[LLMInterface] = None):
-        self.config = config
-        self.llm = llm or HuggingFaceLLM(device=config.device)
-        self.embeddings = None
-        self.vector_store = None
-        self.graph = None
-        self._setup_embeddings()
-        self._setup_vector_store()
-        
-    def _setup_embeddings(self):
-        """Initialize embedding model"""
-        console.print(f"Setting up Gecko embeddings from: {self.config.gecko_model_path}")
-        self.embeddings = GeckoEmbeddings(
-            model_path=self.config.gecko_model_path,
-            tokenizer_path=self.config.tokenizer_path
-        )
-        
-    def _setup_vector_store(self):
-        """Initialize vector store"""
-        console.print("Setting up vector store...")
-        self.vector_store = InMemoryVectorStore(self.embeddings)
+def load_and_chunk_text(file_path: str, chunk_size: int, chunk_overlap: int) -> List[Document]:
+    print(f"Loading text file: {file_path}")
 
-    def load_and_chunk_text(self, file_path: str) -> List[Document]:
-        """Load and chunk text file with exactly sized chunks"""
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"File not found: {file_path}")
-            
-        console.print(f"Loading text file: {file_path}")
-        
-        headers_to_split_on = [
-            ("#", "Header 1"),
-            ("##", "Header 2"),
-            ("###", "Header 3"),
-        ]
+    headers_to_split_on = [("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")]
 
-      
-        loader = TextLoader(file_path, encoding='utf-8')
-        documents = loader.load()
-        text_content = documents[0].page_content
-        
-        
-        markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on, strip_headers=False)
-        md_header_splits = markdown_splitter.split_text(text_content)
+    loader = TextLoader(file_path, encoding='utf-8')
+    text_content = loader.load()[0].page_content
 
-        print(md_header_splits)
+    print("Markdown Aware Text Splitting...")
+    markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on, strip_headers=False)
+    md_header_splits = markdown_splitter.split_text(text_content)
 
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.config.chunk_size, chunk_overlap=self.config.chunk_overlap)
+    print("Processing chunks with table awareness...")
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    final_chunks = []
 
-        # text_splitter = FixedSizeTextSplitter(
-        #         chunk_size=self.config.chunk_size,
-        #         chunk_overlap=self.config.chunk_overlap
-        #     )
+    for doc in md_header_splits:
+        if is_table(doc.page_content):
+            # --- Start of Implemented Logic ---
+            lines = doc.page_content.split('\n')
+            table_start_idx, table_end_idx = -1, -1
 
-        chunks = text_splitter.split_documents(md_header_splits)
-        chunk_sizes = [len(chunk.page_content) for chunk in chunks]
-        console.print(f"Created {len(chunks)} chunks")
-        console.print(f"Chunk sizes - Min: {min(chunk_sizes)}, Max: {max(chunk_sizes)}, Avg: {sum(chunk_sizes)/len(chunk_sizes):.1f}")
-        
-        return chunks
-        
-    def save_chunks_to_file(self, chunks: List[Document], output_path: str, separator: str = "<docsep>"):
-        """Save all chunks to a text file separated by a specified token"""
-        console.print(f"Saving {len(chunks)} chunks to {output_path}...")
-        
-        try:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                for i, chunk in enumerate(chunks):
-                    # Write the chunk content
-                    f.write(chunk.page_content)
-                    
-                    
-                    if i < len(chunks) - 1:
-                        f.write(f"\n{separator}\n")
-                        
-            console.print(f"[green]Successfully saved chunks to {output_path}[/green]")
-            
-            file_size = os.path.getsize(output_path)
-            console.print(f"Output file size: {file_size:,} bytes")
-            
-        except Exception as e:
-            console.print(f"[red]Error saving chunks to file: {e}[/red]")
-            raise    
-        
-    def create_vector_store(self, chunks: List[Document]):
-        """Add chunks to vector store"""
-        console.print(f"Adding {len(chunks)} chunks to vector store...")
-        self.vector_store.add_documents(documents=chunks)
-        console.print("Vector store created successfully")
-        
-    def setup_rag_graph(self):
-        """Setup the RAG pipeline graph"""
-        def retrieve(state: State):
-            """Retrieve relevant documents"""
-            retrieved_docs = self.vector_store.similarity_search(
-                state["question"], 
-                k=self.config.top_k
-            )
-            return {"context": retrieved_docs}
-            
-        def generate_answer(state: State):
-            """Generate answer using LLM"""
-            answer = self.llm.generate(state["question"], state["context"])
-            return {"answer": answer}
-        
-        # the graph
-        graph_builder = StateGraph(State)
-        graph_builder.add_sequence([retrieve, generate_answer])
-        graph_builder.add_edge(START, "retrieve")
-        
-        self.graph = graph_builder.compile()
-        console.print("RAG pipeline graph setup complete")
-        
-    def query(self, question: str) -> Dict[str, Any]:
-        """Query the RAG pipeline"""
-        if self.graph is None:
-            raise ValueError("RAG graph not setup. Call setup_rag_graph() first.")
-            
-        console.print(f"Processing query: {question}")
-        response = self.graph.invoke({"question": question})
-        
-        return response
-        
-    def get_retrieved_contexts(self, question: str) -> List[Document]:
-        """Get only the retrieved contexts without generating answer"""
-        if self.vector_store is None:
-            raise ValueError("Vector store not initialized.")
-            
-        retrieved_docs = self.vector_store.similarity_search(
-            question, 
-            k=self.config.top_k
-        )
-        
-        return retrieved_docs
-        
-    def display_contexts(self, contexts: List[Document]):
-        """Display retrieved contexts in a formatted way"""
-        table = Table(title="Retrieved Contexts")
-        table.add_column("Index", style="cyan", no_wrap=True)
-        table.add_column("Content", style="white", width=60)
-        table.add_column("Size", style="yellow", no_wrap=True)
-        table.add_column("Headers", style="green", width=30)
-        
-        for idx, doc in enumerate(contexts):
-            content_preview = doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
-            chunk_size = doc.metadata.get('chunk_size', len(doc.page_content))
-            
-            # Extract header information
-            headers = []
-            for key, value in doc.metadata.items():
-                if key.startswith('Header') and value:
-                    headers.append(f"{key}: {value}")
-            header_text = "\n".join(headers) if headers else "No headers"
-            
-            table.add_row(str(idx + 1), content_preview, str(chunk_size), header_text)
-            
-        console.print(table)
+            # Find the start of the first table
+            for i, line in enumerate(lines):
+                if line.strip().count('|') >= 2:
+                    table_start_idx = i
+                    break
 
+            # Find the end of the same contiguous table
+            if table_start_idx != -1:
+                table_end_idx = table_start_idx
+                for i in range(table_start_idx + 1, len(lines)):
+                    if lines[i].strip().count('|') >= 2:
+                        table_end_idx = i
+                    else:
+                        break  # End of the table block
+
+            # Define the three parts: text before, the table, and text after
+            text_before = "\n".join(lines[:table_start_idx])
+            table_content = "\n".join(lines[table_start_idx: table_end_idx + 1])
+            text_after = "\n".join(lines[table_end_idx + 1:])
+
+            # Helper to process each part
+            def add_part(content: str, metadata: dict):
+                if content.strip():  # Only process if there is content
+                    part_doc = Document(page_content=content, metadata=metadata)
+                    if len(content) > chunk_size:
+                        # If part is too big, split it
+                        chunks = text_splitter.split_documents([part_doc])
+                        final_chunks.extend(chunks)
+                    else:
+                        # Otherwise, add it as one chunk
+                        final_chunks.append(part_doc)
+
+            # Process the three parts in order
+            add_part(text_before, doc.metadata)
+            add_part(table_content, doc.metadata)
+            add_part(text_after, doc.metadata)
+            # --- End of Implemented Logic ---
+        else:
+            # If no table is detected, chunk the document normally
+            chunks = text_splitter.split_documents([doc])
+            final_chunks.extend(chunks)
+
+    # Final cleanup and report
+    final_chunks = [chunk for chunk in final_chunks if chunk.page_content.strip()]
+    if not final_chunks:
+        print("Warning: No chunks were created.")
+        return []
+
+    chunk_sizes = [len(chunk.page_content) for chunk in final_chunks]
+    print(f"Created {len(final_chunks)} chunks")
+    print(
+        f"Chunk sizes - Min: {min(chunk_sizes)}, Max: {max(chunk_sizes)}, Avg: {sum(chunk_sizes) / len(chunk_sizes):.1f}")
+
+    return final_chunks
+
+def parse_meta_tag(meta_tag_text):
+    # Remove the <meta> tags
+    content = meta_tag_text.replace('<meta>', '').replace('</meta>', '')
+
+    # Split by semicolon to separate title and page info
+    parts = content.split(';')
+
+    # Extract title (first part, stripped of whitespace)
+    title = parts[0].strip()
+
+    # Extract page number (second part, remove "Page:" and strip whitespace)
+    page_number = parts[1].replace('Page:', '').strip()
+
+    return title, page_number
+
+
+# save the chunks into a .txt file and meta tag handling post chunking
+def save_chunks(chunks, title_page_list, output_chunks_path):
+    processed_chunks = []
+
+    for chunk in chunks:
+        # Convert chunk to string if it's not already
+        # chunk_text = str(chunk)
+        chunk_text = chunk.page_content
+        if '<meta>' in chunk_text:
+            # Case 1: Chunk contains meta tags
+            # Find first meta tag
+            start = chunk_text.find('<meta>')
+            end = chunk_text.find('</meta>') + 7
+            first_meta = chunk_text[start:end]
+
+            # Remove all meta tags from the text
+            text = chunk_text
+            # print(text)
+            while '<meta>' in text:
+                start = text.find('<meta>')
+                end = text.find('</meta>') + 7
+                text = text[:start] + text[end:]
+
+            # Put first meta tag at the front
+
+            processed_chunk = first_meta + text
+            relevant_meta_tag = first_meta
+        else:
+
+            # Case 2: No meta tags, use previous chunk's meta tag
+            processed_chunk = relevant_meta_tag + chunk_text
+
+        title, page = parse_meta_tag(relevant_meta_tag)
+        inst = (title, page)
+        title_page_list.append(inst)
+        # print(inst)
+        processed_chunks.append(processed_chunk)
+
+    # Save the tagged docs to file
+    with open(output_chunks_path, 'w', encoding='utf-8') as f:
+        f.write('<SEP>'.join(processed_chunks))
+
+    print(f"Saved {len(processed_chunks)} chunks to {output_chunks_path}")
+
+
+# --------------------------------------------------- End-To-End Pipeline -------------------------------------------------------
 
 def main():
-   
-    # Configuration - Updated to use Gecko
-    config = RAGConfig(
-        chunk_size=1000, 
-        chunk_overlap=200,
-        device="cuda",
-        top_k=3,
-        gecko_model_path="Gecko_1024_quant.tflite",
-        tokenizer_path="sentencepiece.model"
-    )
-    
-    # Initialising the RAG pipeline
-    rag_pipeline = RAGPipeline(config, HuggingFaceLLM("google/gemma-3n-E2B-it", device=config.device))      # using gemma-3n-E4B-it instead of gemma-3n-E4B-it-litert-preview
-    
-    try:
-        # Load and process text file
-        text_file_path = "WHO_PositiveBirth_2018_extracted.txt"
-        
-        console.print("[bold blue]Chunking using Markdown-Aware Fixed Splitter with Gecko Embeddings:[/bold blue]")
-        chunks = rag_pipeline.load_and_chunk_text(text_file_path)
-        
-        
-        output_chunks_path = "chunks_output.txt"  # Output file for chunks
-        
-        # Save chunks to file with <sep> separator
-        rag_pipeline.save_chunks_to_file(chunks, output_chunks_path, separator="<sep>")
-        
-        
-        rag_pipeline.create_vector_store(chunks)
-        rag_pipeline.setup_rag_graph()
-        
-        # Example questions/queries
-        questions = [
-            "Given a newborn presenting with respiratory distress and murmurs at birth, how can we differentiate between transient tachypnea of the newborn (TTN), neonatal sepsis, and meconium aspiration using clinical signs and a basic pulse oximeter, given that we do not have access to chest x-rays and blood cultures?",
-            "What immediate steps should be taken after the baby is born to ensure breathing, warmth, and safe cord care without advanced equipment?",
-            "How can I help a mother start breastfeeding within the first hour, and what are the signs that the baby is breastfeeding well?",
-            "What basic hygiene rules should be followed to prevent infections in newborns during and after delivery at home or in the clinic?",
-            "What are the main warning signs in a newborn that require urgent referral or emergency care in the first 7 days?",
-            "How can I tell if a newborn is too cold or too hot, and what simple steps can I take to stabilize their temperature?",
-            "If a newborn is not breathing at birth, what step-by-step steps should I take in the first minute without special tools?"
-        ]
-        
-        for question in questions:
-            console.print(f"\n[bold yellow]Question: {question}[/bold yellow]")
-            
-            # Get only retrieved contexts
-            contexts = rag_pipeline.get_retrieved_contexts(question)
-            console.print(f"[blue]Retrieved {len(contexts)} contexts:[/blue]")
-            rag_pipeline.display_contexts(contexts)
-            
-            response = rag_pipeline.query(question)
-            console.print(f"[green]Answer: {response['answer']}[/green]")
-            
-    except FileNotFoundError as e:
-        console.print(f"Error: {e}")
-    except Exception as e:
-        console.print(f"An error occurred: {e}")
+    # Step 1: Split the pages of each PDF file and save them in output_pages folder
+
+    # pdf_folder = "./data"       # folder with all the guideline pdf files
+    # pdfs = glob.glob(os.path.join(pdf_folder, "**", "*.pdf"), recursive=True)
+
+    # for pdf_file in pdfs:
+    #     if os.path.exists(pdf_file):
+    #         print(f"Processing and saving pages from: {pdf_file}")
+    #         split_and_save_pages(pdf_file, "output_pages")
+
+    # # Step 2: Use Mmore to extract text from each pdf file in the output_pages and save them to example.jsonl file
+
+    # pages_folder = "./output_pages"
+
+    # # Collect all PDF pages from output_pages and sort them in order for consistency
+    # pdf_file_paths = glob.glob(os.path.join(pages_folder, "*.pdf"))
+    # # print(pdf_file_paths)
+    # out_file = "./example.jsonl"
+
+    # pdf_processor_config = ProcessorConfig(custom_config={"output_path": "examples/process/outputs"})
+    # pdf_processor = PDFProcessor(config=pdf_processor_config)
+    # result_pdf = pdf_processor.process_batch(pdf_file_paths, False, 16) # args: file_paths, fast mode (True/False), num_workers
+
+    # MultimodalSample.to_jsonl(out_file, result_pdf)
+
+    # Step 3: Add meta tags to the extracted text of each page and then merge all the text into a single .txt file
+
+    add_meta_tags('example.jsonl', 'combined_pdf_texts.txt')
+
+    process_text_file("./combined_pdf_texts.txt")
+
+    # Step 4: Chunking and Tagged Docs
+    text_file_path = "./combined_pdf_texts.txt"
+    chunks = load_and_chunk_text(file_path=text_file_path, chunk_size=2000, chunk_overlap=400)
+
+    output_chunks_path = "chunks_tagged_docs.txt"  # Output file for chunks
+    title_page_list = []
+    # Save chunks to file with <sep> separator
+    # print(chunks)
+    save_chunks(chunks, title_page_list, output_chunks_path)
+
+    # create_vector_store(chunks, title_page_list)
 
 
 if __name__ == "__main__":
